@@ -1,0 +1,6 @@
+{
+  "name": "Vegetable Shop Manager",
+  "description": "A simple and powerful manager for vegetable selling shops to track daily sales, manage pending bills, and generate professional client invoices.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
