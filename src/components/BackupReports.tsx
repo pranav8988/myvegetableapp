@@ -1,7 +1,8 @@
 import { useState, useMemo, ChangeEvent } from 'react';
 import { Vegetable, Sale, CustomerProfile } from '../types';
-import { Download, Users, Calendar, FileText, CheckCircle, Database, Clock, ArrowRight, Share2, Copy, Check, AlertCircle } from 'lucide-react';
+import { Download, Users, Calendar, FileText, CheckCircle, Database, Clock, ArrowRight, Share2, Copy, Check, AlertCircle, FileSpreadsheet } from 'lucide-react';
 import { useLanguage } from '../lib/translations';
+import * as XLSX from 'xlsx';
 
 interface BackupReportsProps {
   sales: Sale[];
@@ -23,6 +24,94 @@ export default function BackupReports({
   onRestoreDirect,
 }: BackupReportsProps) {
   const { t, language } = useLanguage();
+
+  // Helper to calculate auto column widths for clean Excel layout
+  const applyWorksheetLayout = (ws: XLSX.WorkSheet, data: any[]) => {
+    if (!data || data.length === 0) return;
+    const keys = Object.keys(data[0]);
+    const colWidths = keys.map((key) => {
+      let maxLen = key.length;
+      data.forEach((row) => {
+        const val = row[key];
+        if (val !== undefined && val !== null) {
+          const str = String(val);
+          if (str.length > maxLen) maxLen = str.length;
+        }
+      });
+      return { wch: Math.min(Math.max(maxLen + 4, 12), 48) };
+    });
+    ws['!cols'] = colWidths;
+  };
+
+  // Full App XLSX Backup Handler
+  const handleBackupFullXlsx = () => {
+    try {
+      const wb = XLSX.utils.book_new();
+
+      const salesData = sales.map((s) => ({
+        Invoice_Number: s.invoiceNumber,
+        Date: s.date,
+        Customer_Name: s.customerName,
+        Customer_Phone: s.customerPhone || '',
+        Total_Items: s.items.length,
+        Total_Amount: s.totalAmount,
+        Amount_Paid: s.amountPaid,
+        Balance_Due: s.totalAmount - s.amountPaid,
+        Payment_Method: s.paymentMethod,
+        Payment_Status: s.paymentStatus,
+        Notes: s.notes || '',
+        Items_Summary: s.items.map((i) => `${i.vegName} (${i.quantity}kg)`).join(', ')
+      }));
+      const wsSales = XLSX.utils.json_to_sheet(salesData);
+      applyWorksheetLayout(wsSales, salesData);
+      XLSX.utils.book_append_sheet(wb, wsSales, 'Sales_Ledger');
+
+      const itemsData: any[] = [];
+      sales.forEach((s) => {
+        s.items.forEach((item) => {
+          itemsData.push({
+            Invoice_Number: s.invoiceNumber,
+            Date: s.date,
+            Customer_Name: s.customerName,
+            Vegetable_Name: item.vegName,
+            Emoji: item.vegEmoji,
+            Quantity_Kg: item.quantity,
+            Price_Per_Kg: item.pricePerKg,
+            Item_Total: item.total
+          });
+        });
+      });
+      const wsItems = XLSX.utils.json_to_sheet(itemsData);
+      applyWorksheetLayout(wsItems, itemsData);
+      XLSX.utils.book_append_sheet(wb, wsItems, 'Sale_Items_Detail');
+
+      const vegData = vegetables.map((v) => ({
+        Veg_ID: v.id,
+        Vegetable_Name: v.name,
+        Emoji: v.imageEmoji,
+        Category: v.category,
+        Default_Price_Per_Kg: v.defaultPrice
+      }));
+      const wsVeg = XLSX.utils.json_to_sheet(vegData);
+      applyWorksheetLayout(wsVeg, vegData);
+      XLSX.utils.book_append_sheet(wb, wsVeg, 'Vegetables_Catalog');
+
+      const custData = customerProfiles.map((c) => ({
+        Customer_ID: c.id,
+        Customer_Name: c.name,
+        Phone_Number: c.phone || '',
+        Created_At: c.createdAt
+      }));
+      const wsCust = XLSX.utils.json_to_sheet(custData);
+      applyWorksheetLayout(wsCust, custData);
+      XLSX.utils.book_append_sheet(wb, wsCust, 'Customer_Profiles');
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      XLSX.writeFile(wb, `backup_full_store_data_${dateStr}.xlsx`);
+    } catch (err) {
+      console.error('XLSX export failed', err);
+    }
+  };
   
   // Full Backup / Restore Copy-Paste States
   const [copiedFullBackup, setCopiedFullBackup] = useState(false);
@@ -333,6 +422,100 @@ export default function BackupReports({
     handleDownloadJson(dataObj, `backup_${safeName}_statement_${rangeType}.json`);
   };
 
+  // Generate and Download Customer Statement (XLSX)
+  const downloadCustomerXlsx = () => {
+    if (!selectedCustName) return;
+    try {
+      const wb = XLSX.utils.book_new();
+
+      const ledgerRows = customerExportSales.map((s) => ({
+        Invoice_Number: s.invoiceNumber,
+        Date: s.date,
+        Customer_Name: s.customerName,
+        Total_Amount: s.totalAmount,
+        Amount_Paid: s.amountPaid,
+        Balance_Due: s.totalAmount - s.amountPaid,
+        Payment_Method: s.paymentMethod,
+        Payment_Status: s.paymentStatus,
+        Notes: s.notes || ''
+      }));
+      const wsLedger = XLSX.utils.json_to_sheet(ledgerRows);
+      applyWorksheetLayout(wsLedger, ledgerRows);
+      XLSX.utils.book_append_sheet(wb, wsLedger, 'Customer_Ledger');
+
+      const itemRows: any[] = [];
+      customerExportSales.forEach((s) => {
+        s.items.forEach((item) => {
+          itemRows.push({
+            Invoice_Number: s.invoiceNumber,
+            Date: s.date,
+            Vegetable_Name: item.vegName,
+            Emoji: item.vegEmoji,
+            Quantity_Kg: item.quantity,
+            Price_Per_Kg: item.pricePerKg,
+            Item_Total: item.total
+          });
+        });
+      });
+      const wsItems = XLSX.utils.json_to_sheet(itemRows);
+      applyWorksheetLayout(wsItems, itemRows);
+      XLSX.utils.book_append_sheet(wb, wsItems, 'Purchased_Items');
+
+      const safeName = selectedCustName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      XLSX.writeFile(wb, `statement_${safeName}.xlsx`);
+    } catch (err) {
+      console.error('Customer XLSX export failed', err);
+    }
+  };
+
+  // Generate and Download Monthly Sales (XLSX)
+  const downloadMonthlyXlsx = () => {
+    if (!selectedMonth) return;
+    try {
+      const wb = XLSX.utils.book_new();
+
+      const ledgerRows = monthlySales.map((s) => ({
+        Invoice_Number: s.invoiceNumber,
+        Date: s.date,
+        Customer_Name: s.customerName,
+        Customer_Phone: s.customerPhone || '',
+        Total_Amount: s.totalAmount,
+        Amount_Paid: s.amountPaid,
+        Balance_Due: s.totalAmount - s.amountPaid,
+        Payment_Method: s.paymentMethod,
+        Payment_Status: s.paymentStatus,
+        Notes: s.notes || '',
+        Items_Summary: s.items.map((i) => `${i.vegName}(${i.quantity}kg)`).join(', ')
+      }));
+      const wsLedger = XLSX.utils.json_to_sheet(ledgerRows);
+      applyWorksheetLayout(wsLedger, ledgerRows);
+      XLSX.utils.book_append_sheet(wb, wsLedger, 'Monthly_Sales');
+
+      const itemRows: any[] = [];
+      monthlySales.forEach((s) => {
+        s.items.forEach((item) => {
+          itemRows.push({
+            Invoice_Number: s.invoiceNumber,
+            Date: s.date,
+            Customer_Name: s.customerName,
+            Vegetable_Name: item.vegName,
+            Emoji: item.vegEmoji,
+            Quantity_Kg: item.quantity,
+            Price_Per_Kg: item.pricePerKg,
+            Item_Total: item.total
+          });
+        });
+      });
+      const wsItems = XLSX.utils.json_to_sheet(itemRows);
+      applyWorksheetLayout(wsItems, itemRows);
+      XLSX.utils.book_append_sheet(wb, wsItems, 'Monthly_Items');
+
+      XLSX.writeFile(wb, `monthly_sales_${selectedMonth}.xlsx`);
+    } catch (err) {
+      console.error('Monthly XLSX export failed', err);
+    }
+  };
+
   // Generate and Download Customer Statement (TXT)
   const downloadCustomerTxt = () => {
     const text = buildCustomerStatementText();
@@ -498,17 +681,30 @@ export default function BackupReports({
               {language === 'mr' ? 'पर्याय १: फाईल बॅकअप (संगणकासाठी उत्तम)' : 'Option 1: File-based Backup (Best for PC)'}
             </h4>
             <div className="flex flex-col gap-2.5">
+              {/* Primary Full Excel XLSX Backup */}
+              <button
+                onClick={handleBackupFullXlsx}
+                className="w-full flex items-center justify-between bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2.5 px-3.5 rounded-xl transition shadow-xs cursor-pointer"
+                title="Download complete Excel spreadsheet backup (.xlsx)"
+              >
+                <span className="flex items-center gap-1.5">
+                  <FileSpreadsheet className="w-4 h-4" />
+                  {language === 'mr' ? 'पूर्ण Excel बॅकअप (.xlsx) डाउनलोड करा' : 'Download Excel Backup (.xlsx)'}
+                </span>
+                <span className="bg-emerald-700/60 text-[10px] px-2 py-0.5 rounded-full font-mono font-medium">.xlsx</span>
+              </button>
+
               {/* Primary Full JSON Backup */}
               <button
                 onClick={onBackupFull}
-                className="w-full flex items-center justify-between bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2.5 px-3.5 rounded-xl transition shadow-xs cursor-pointer"
+                className="w-full flex items-center justify-between bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold py-2.5 px-3.5 rounded-xl transition shadow-xs cursor-pointer"
                 title="Download backup file of sales ledger and vegetable configurations"
               >
                 <span className="flex items-center gap-1.5">
                   <Download className="w-4 h-4" />
-                  {language === 'mr' ? 'पूर्ण बॅकअप फाइल डाउनलोड करा' : 'Download Backup File'}
+                  {language === 'mr' ? 'पूर्ण बॅकअप फाइल डाउनलोड करा' : 'Download JSON Backup File'}
                 </span>
-                <span className="bg-emerald-700/60 text-[10px] px-2 py-0.5 rounded-full font-mono font-medium">.json</span>
+                <span className="bg-slate-700/60 text-[10px] px-2 py-0.5 rounded-full font-mono font-medium">.json</span>
               </button>
 
               {/* Restore Full Ledger */}
@@ -814,8 +1010,16 @@ export default function BackupReports({
                 </h4>
                 <div className="flex flex-wrap gap-2.5">
                   <button
+                    onClick={downloadCustomerXlsx}
+                    className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-3.5 rounded-xl transition cursor-pointer shadow-xs"
+                    title="Download Excel statement file"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>{language === 'mr' ? 'Excel विवरण (.xlsx)' : 'Download Excel (.xlsx)'}</span>
+                  </button>
+                  <button
                     onClick={downloadCustomerTxt}
-                    className="flex items-center gap-1.5 bg-slate-850 hover:bg-slate-900 text-white text-xs font-semibold py-2 px-3.5 rounded-xl transition cursor-pointer"
+                    className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold py-2 px-3.5 rounded-xl transition cursor-pointer"
                     title="Download beautifully styled invoice statement report"
                   >
                     <FileText className="w-4 h-4" />
@@ -991,8 +1195,16 @@ export default function BackupReports({
                 </h4>
                 <div className="flex flex-wrap gap-2.5">
                   <button
+                    onClick={downloadMonthlyXlsx}
+                    className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-3.5 rounded-xl transition cursor-pointer shadow-xs"
+                    title="Download Excel monthly report"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>{language === 'mr' ? 'Excel अहवाल (.xlsx)' : 'Download Excel (.xlsx)'}</span>
+                  </button>
+                  <button
                     onClick={downloadMonthlyTxt}
-                    className="flex items-center gap-1.5 bg-slate-850 hover:bg-slate-900 text-white text-xs font-semibold py-2 px-3.5 rounded-xl transition cursor-pointer"
+                    className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold py-2 px-3.5 rounded-xl transition cursor-pointer"
                     title="Download monthly sales ledger summary in text form"
                   >
                     <FileText className="w-4 h-4" />

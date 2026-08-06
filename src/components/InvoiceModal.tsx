@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Printer, Share2, Check, Copy, AlertCircle, Camera } from 'lucide-react';
+import { X, Printer, Share2, Check, Copy, AlertCircle, Camera, Download } from 'lucide-react';
 import { Sale } from '../types';
 import { useState } from 'react';
 import { useLanguage } from '../lib/translations';
@@ -15,6 +15,19 @@ interface InvoiceModalProps {
     gstin?: string;
   };
 }
+
+// Convert base64 dataUrl to Blob for reliable mobile download & sharing
+const dataUrlToBlob = (dataUrl: string): Blob => {
+  const arr = dataUrl.split(',');
+  const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], { type: mime });
+};
 
 export default function InvoiceModal({ 
   sale, 
@@ -55,7 +68,7 @@ export default function InvoiceModal({
       await new Promise((resolve) => setTimeout(resolve, 150));
 
       const dataUrl = await toPng(element, {
-        quality: 0.95,
+        quality: 0.98,
         pixelRatio: 2,
         backgroundColor: '#ffffff',
         cacheBust: true,
@@ -72,6 +85,54 @@ export default function InvoiceModal({
       );
       setCapturing(false);
     }
+  };
+
+  // Cross-device mobile download handler using Blob
+  const handleDownloadCapturedImage = () => {
+    if (!capturedImage) return;
+    try {
+      const blob = dataUrlToBlob(capturedImage);
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `Invoice-${sale.invoiceNumber}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    } catch (e) {
+      const a = document.createElement('a');
+      a.href = capturedImage;
+      a.download = `Invoice-${sale.invoiceNumber}.png`;
+      a.click();
+    }
+  };
+
+  // Cross-device mobile share handler (Web Share API with fallback)
+  const handleShareCapturedImage = async () => {
+    if (!capturedImage) return;
+
+    try {
+      const blob = dataUrlToBlob(capturedImage);
+      const file = new File([blob], `Invoice-${sale.invoiceNumber}.png`, { type: 'image/png' });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: `Invoice - ${sale.invoiceNumber}`,
+          text: `Invoice ${sale.invoiceNumber} from ${shopDetails.name}`,
+          files: [file],
+        });
+        return;
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      console.log('Native image share failed or cancelled', err);
+    }
+
+    // Fallback to WhatsApp share
+    const targetPhone = whatsappNumber ? `91${whatsappNumber}` : '';
+    const text = getWhatsAppText();
+    window.open(`https://api.whatsapp.com/send?phone=${targetPhone}&text=${text}`, '_blank');
   };
 
   const getWhatsAppText = () => {
@@ -135,7 +196,9 @@ export default function InvoiceModal({
           {/* Header (Hidden during Print) */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-slate-50 no-print">
             <div>
-              <h3 className="font-display font-semibold text-lg text-slate-800">Client Invoice</h3>
+              <h3 className="font-display font-semibold text-lg text-slate-800">
+                {language === 'mr' ? 'ग्राहक बिल / बीजक' : 'Client Invoice'}
+              </h3>
               <p className="text-xs text-slate-500 font-mono">{sale.invoiceNumber}</p>
             </div>
             <button 
@@ -148,116 +211,122 @@ export default function InvoiceModal({
           </div>
 
           {/* Invoice container */}
-          <div className="flex-1 p-6">
-            {/* Printable Area */}
-            <div id="print-area" className="bg-white text-slate-900 font-sans p-2">
-              {/* Receipt Header */}
-              <div className="text-center pb-6 border-b border-dashed border-gray-300">
+          <div className="flex-1 p-4 sm:p-6 bg-slate-100/50">
+            {/* Printable Area with generous internal padding */}
+            <div id="print-area" className="bg-white text-slate-900 font-sans p-5 sm:p-7 rounded-2xl border border-slate-200 shadow-xs max-w-md mx-auto">
+              {/* Receipt Header Box */}
+              <div className="text-center p-4 rounded-xl bg-slate-50/90 border border-slate-200 mb-4">
                 <span className="inline-flex text-3xl mb-1">🥬</span>
-                <h1 className="font-display font-bold text-xl text-slate-800 tracking-tight">{shopDetails.name}</h1>
-                <p className="text-xs text-slate-500 mt-1">{shopDetails.address}</p>
-                <p className="text-xs text-slate-500">Mob: {shopDetails.phone}</p>
+                <h1 className="font-display font-bold text-xl text-slate-900 tracking-tight">{shopDetails.name}</h1>
+                <p className="text-xs text-slate-600 mt-1">{shopDetails.address}</p>
+                <p className="text-xs text-slate-600 font-medium mt-0.5">Mob: {shopDetails.phone}</p>
                 {shopDetails.gstin && (
-                  <p className="text-xs text-slate-400 font-mono mt-0.5">GSTIN: {shopDetails.gstin}</p>
+                  <p className="text-xs text-slate-500 font-mono mt-0.5">GSTIN: {shopDetails.gstin}</p>
                 )}
               </div>
 
-              {/* Meta information */}
-              <div className="grid grid-cols-2 gap-4 py-4 text-xs border-b border-dashed border-gray-200">
-                <div>
-                  <p className="text-gray-400 font-medium">{language === 'mr' ? 'ग्राहक:' : 'INVOICE TO:'}</p>
-                  <p className="font-semibold text-slate-800 text-sm mt-0.5">{sale.customerName}</p>
+              {/* Meta information Card */}
+              <div className="grid grid-cols-2 gap-4 p-4 rounded-xl border border-dashed border-slate-300 bg-white mb-4 text-xs">
+                <div className="pr-2">
+                  <p className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider">
+                    {language === 'mr' ? 'ग्राहक:' : 'INVOICE TO:'}
+                  </p>
+                  <p className="font-bold text-slate-900 text-sm mt-1 leading-snug">{sale.customerName}</p>
                   {sale.customerPhone && (
-                    <p className="text-slate-500 font-mono">{sale.customerPhone}</p>
+                    <p className="text-slate-600 font-mono text-xs mt-0.5">{sale.customerPhone}</p>
                   )}
                 </div>
-                <div className="text-right">
-                  <p className="text-gray-400 font-medium">{language === 'mr' ? 'बिल तपशील:' : 'INVOICE DETAILS:'}</p>
-                  <p className="font-semibold text-slate-800 mt-0.5 font-mono">{sale.invoiceNumber}</p>
-                  <p className="text-slate-500 font-mono">{language === 'mr' ? 'तारीख:' : 'Date:'} {sale.date}</p>
+                <div className="text-right pl-2 border-l border-slate-100">
+                  <p className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider">
+                    {language === 'mr' ? 'बिल तपशील:' : 'INVOICE DETAILS:'}
+                  </p>
+                  <p className="font-bold text-slate-900 mt-1 font-mono text-xs tracking-tight">{sale.invoiceNumber}</p>
+                  <p className="text-slate-600 font-mono text-xs mt-0.5">
+                    {language === 'mr' ? 'तारीख:' : 'Date:'} {sale.date}
+                  </p>
                 </div>
               </div>
 
               {/* Items Table */}
-              <div className="py-4">
-                <table className="w-full text-left text-xs">
+              <div className="mb-4 rounded-xl border border-slate-200 overflow-hidden">
+                <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-gray-200 text-gray-500 uppercase font-semibold">
-                      <th className="pb-2 w-8">#</th>
-                      <th className="pb-2">{t('veg_name') || 'Vegetable'}</th>
-                      <th className="pb-2 text-right">{t('rate_header') || 'Price/kg'}</th>
-                      <th className="pb-2 text-right w-16">{t('qty_kg_header') || 'Qty (kg)'}</th>
-                      <th className="pb-2 text-right">{t('amount_header') || 'Total'}</th>
+                    <tr className="bg-slate-100/90 text-slate-700 uppercase font-bold border-b border-slate-200">
+                      <th className="py-2.5 px-3 w-7 text-center">#</th>
+                      <th className="py-2.5 px-3">{t('veg_name') || 'Vegetable'}</th>
+                      <th className="py-2.5 px-3 text-right">{t('rate_header') || 'Price/kg'}</th>
+                      <th className="py-2.5 px-3 text-right w-16">{t('qty_kg_header') || 'Qty (kg)'}</th>
+                      <th className="py-2.5 px-3 text-right">{t('amount_header') || 'Total'}</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100 font-mono text-slate-700">
+                  <tbody className="divide-y divide-slate-100 font-mono text-slate-800 bg-white">
                     {sale.items.map((item, index) => (
                       <tr key={`invoice-item-${item.id || 'item'}-${item.vegName || ''}-${index}`} className="align-middle">
-                        <td className="py-2.5 text-slate-400">{index + 1}</td>
-                        <td className="py-2.5 font-sans font-medium text-slate-950">
-                          <span className="mr-1">{item.vegEmoji}</span>
+                        <td className="py-2.5 px-3 text-center text-slate-400 font-sans text-xs">{index + 1}</td>
+                        <td className="py-2.5 px-3 font-sans font-semibold text-slate-900">
+                          <span className="mr-1.5">{item.vegEmoji}</span>
                           {t(item.vegName)}
                         </td>
-                        <td className="py-2.5 text-right">₹{item.pricePerKg.toFixed(1)}</td>
-                        <td className="py-2.5 text-right">{item.quantity.toFixed(2)}</td>
-                        <td className="py-2.5 text-right font-semibold text-slate-900">₹{item.total.toFixed(1)}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-700">₹{item.pricePerKg.toFixed(1)}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-700">{item.quantity.toFixed(2)}</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-slate-950">₹{item.total.toFixed(1)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
 
-              {/* Total Calculation */}
-              <div className="border-t border-dashed border-gray-300 pt-4 text-xs flex flex-col gap-1.5 font-mono">
-                <div className="flex justify-between text-gray-500">
+              {/* Total Calculation Card */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 text-xs flex flex-col gap-2 font-mono mb-4">
+                <div className="flex justify-between text-slate-600 font-sans">
                   <span>{t('subtotal') || 'Subtotal'}</span>
-                  <span>₹{sale.totalAmount.toFixed(1)}</span>
+                  <span className="font-mono font-semibold">₹{sale.totalAmount.toFixed(1)}</span>
                 </div>
-                <div className="flex justify-between text-gray-500">
+                <div className="flex justify-between text-slate-600 font-sans">
                   <span>{language === 'mr' ? 'सवलत (सूट)' : 'Discount'}</span>
-                  <span>₹0.0</span>
+                  <span className="font-mono font-semibold">₹0.0</span>
                 </div>
-                <div className="flex justify-between font-semibold text-slate-950 text-sm border-t border-gray-100 pt-1.5">
+                <div className="flex justify-between font-bold text-slate-950 text-sm border-t border-slate-200/80 pt-2 font-sans">
                   <span>{language === 'mr' ? 'एकूण देय रक्कम (GRAND TOTAL)' : 'GRAND TOTAL'}</span>
-                  <span>₹{sale.totalAmount.toFixed(1)}</span>
+                  <span className="font-mono text-base text-emerald-700">₹{sale.totalAmount.toFixed(1)}</span>
                 </div>
-                <div className="flex justify-between text-emerald-600 font-medium">
+                <div className="flex justify-between text-emerald-700 font-medium font-sans border-t border-slate-200/50 pt-1.5">
                   <span>{t('paid_amt') || 'Amount Paid'}</span>
-                  <span>₹{sale.amountPaid.toFixed(1)}</span>
+                  <span className="font-mono font-semibold">₹{sale.amountPaid.toFixed(1)}</span>
                 </div>
                 
                 {balanceDue > 0 ? (
-                  <div className="flex justify-between text-rose-500 font-semibold border-t border-red-50 border-dashed pt-1 mt-1">
-                    <span className="flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5" />
+                  <div className="flex justify-between text-rose-600 font-bold border-t border-rose-200/80 border-dashed pt-2 mt-1 font-sans">
+                    <span className="flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 text-rose-500" />
                       {t('bal_due') || 'Pending Balance'}
                     </span>
-                    <span>₹{balanceDue.toFixed(1)}</span>
+                    <span className="font-mono text-sm">₹{balanceDue.toFixed(1)}</span>
                   </div>
                 ) : (
-                  <div className="flex justify-between text-emerald-600 font-semibold border-t border-emerald-50 border-dashed pt-1 mt-1">
+                  <div className="flex justify-between text-emerald-700 font-bold border-t border-emerald-200/80 border-dashed pt-2 mt-1 font-sans items-center">
                     <span>{language === 'mr' ? 'पेमेंट स्थिती' : 'Payment Status'}</span>
-                    <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-sm text-[10px] tracking-wider uppercase">PAID</span>
+                    <span className="bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-md text-[11px] tracking-wider uppercase font-bold">PAID</span>
                   </div>
                 )}
               </div>
 
-              {/* Method and Notes */}
-              <div className="mt-6 pt-4 border-t border-gray-100 text-[11px] text-gray-500">
-                <p>
-                  <span className="font-semibold text-slate-700">{language === 'mr' ? 'पेमेंट मोड:' : 'Payment Mode:'}</span>{' '}
-                  <span className="uppercase font-mono bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px]">
-                    {sale.paymentMethod === 'cash' ? (language === 'mr' ? 'रोख (CASH)' : 'cash') : sale.paymentMethod === 'upi' ? 'UPI' : (language === 'mr' ? 'उधारी (CREDIT)' : 'credit')}
+              {/* Method and Notes Card */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-white text-xs text-slate-600">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-slate-800">{language === 'mr' ? 'पेमेंट मोड:' : 'Payment Mode:'}</span>
+                  <span className="uppercase font-mono font-bold bg-slate-100 text-slate-800 px-2.5 py-1 rounded-md text-xs border border-slate-200">
+                    {sale.paymentMethod === 'cash' ? (language === 'mr' ? 'रोख (CASH)' : 'CASH') : sale.paymentMethod === 'upi' ? 'UPI' : (language === 'mr' ? 'उधारी (CREDIT)' : 'CREDIT')}
                   </span>
-                </p>
+                </div>
                 {sale.notes && (
-                  <p className="mt-2 bg-amber-50/50 p-2 rounded text-amber-800">
-                    <span className="font-semibold">{t('notes') || 'Notes:'}</span> {sale.notes}
-                  </p>
+                  <div className="mt-3 bg-amber-50 border border-amber-200 p-3 rounded-lg text-amber-900">
+                    <span className="font-bold">{t('notes') || 'Notes:'}</span> {sale.notes}
+                  </div>
                 )}
                 
                 {/* Footer Message */}
-                <div className="text-center mt-8 text-gray-400 italic text-[10px]">
+                <div className="text-center mt-6 text-slate-400 italic text-[11px] font-sans">
                   {language === 'mr' ? 'आमच्याकडून खरेदी केल्याबद्दल धन्यवाद! ताजी खा, निरोगी रहा!' : 'Thank you for shopping with us! Buy Fresh, Eat Healthy!'}
                 </div>
               </div>
@@ -363,15 +432,24 @@ export default function InvoiceModal({
         </motion.div>
       </motion.div>
 
-      {/* Captured Image Preview Overlay */}
+      {/* Captured Image Screenshot Preview Overlay */}
       {capturedImage && (
         <div key="captured-image-overlay" className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm no-print">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 flex flex-col items-center text-center gap-4"
+            className="relative bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 flex flex-col items-center text-center gap-4"
           >
-            <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 text-2xl">
+            {/* Top-Right 'X' Close Button */}
+            <button
+              onClick={() => setCapturedImage(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition cursor-pointer"
+              title={language === 'mr' ? 'बंद करा' : 'Close'}
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 text-2xl mt-1">
               📸
             </div>
             <div>
@@ -380,34 +458,38 @@ export default function InvoiceModal({
               </h4>
               <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
                 {language === 'mr' 
-                  ? 'सुरक्षा कारणांमुळे ऑटो-डाउनलोड न झाल्यास, खालील प्रतिमेवर जास्त वेळ दाबून ठेवा (मोबाईल) किंवा उजवे-क्लिक (माउस) करून जतन करा.'
-                  : 'If the automatic download did not trigger, you can long-press (mobile) or right-click (desktop) the image below to save it.'}
+                  ? 'इथून डाउनलोड करा किंवा थेट शेअर करा.'
+                  : 'Download or share the bill image directly across devices.'}
               </p>
             </div>
             
             {/* Captured preview img */}
-            <div className="border border-slate-100 rounded-lg p-2 bg-slate-50 max-h-64 overflow-y-auto w-full flex justify-center">
+            <div className="border border-slate-200 rounded-xl p-2 bg-slate-50 max-h-64 overflow-y-auto w-full flex justify-center">
               <img 
                 src={capturedImage} 
                 alt="Captured Invoice" 
-                className="max-w-full h-auto object-contain rounded shadow-xs"
+                className="max-w-full h-auto object-contain rounded-lg shadow-xs"
                 referrerPolicy="no-referrer"
               />
             </div>
 
             <div className="flex gap-2 w-full mt-2">
-              <a
-                href={capturedImage}
-                download={`Invoice-${sale.invoiceNumber}.png`}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3 rounded-xl transition text-center flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <span>💾 {language === 'mr' ? 'डाउनलोड करा' : 'Download Now'}</span>
-              </a>
               <button
-                onClick={() => setCapturedImage(null)}
-                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs py-3 rounded-xl transition cursor-pointer"
+                onClick={handleDownloadCapturedImage}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3 px-3 rounded-xl transition text-center flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                title={language === 'mr' ? 'बिल डाउनलोड करा' : 'Download Bill Image'}
               >
-                {language === 'mr' ? 'बंद करा' : 'Close'}
+                <Download className="w-4 h-4" />
+                <span>{language === 'mr' ? 'डाउनलोड करा' : 'Download'}</span>
+              </button>
+              
+              <button
+                onClick={handleShareCapturedImage}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs py-3 px-3 rounded-xl transition text-center flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                title={language === 'mr' ? 'बिल शेअर करा' : 'Share Bill Image'}
+              >
+                <Share2 className="w-4 h-4" />
+                <span>{language === 'mr' ? 'शेअर करा' : 'Share'}</span>
               </button>
             </div>
           </motion.div>

@@ -30,9 +30,9 @@ body {
   background: #94a3b8;
 }
 
-/* Custom Print Styles for Invoice printing */
+/* Custom Print Styles for Invoice & Report printing */
 @media print {
-  /* Hide all main elements on the body during printing, except our modal/print elements */
+  /* Hide all main elements on the body during printing, except printable elements */
   body {
     visibility: hidden !important;
     background: white !important;
@@ -52,98 +52,63 @@ body {
     background: transparent !important;
   }
 
-  /* Make sure our print area and its contents are visible */
+  /* Make sure printable area and its contents are visible */
   #print-area,
-  #print-area * {
+  #print-area *,
+  .print\:block,
+  .print\:block * {
     visibility: visible !important;
   }
 
-  /* Specific styling for the print area on the paper */
   #print-area {
     position: absolute !important;
     left: 50% !important;
-    top: 0 !important;
+    top: 10px !important;
     transform: translateX(-50%) !important;
     width: 100% !important;
-    max-width: 480px !important;
+    max-width: 800px !important;
     margin: 0 auto !important;
-    padding: 15px !important;
+    padding: 24px !important;
     background: white !important;
-    color: #000000 !important;
+    color: #0f172a !important;
     display: block !important;
     box-sizing: border-box !important;
-    border: none !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 16px !important;
     page-break-inside: avoid !important;
   }
 
   #print-area * {
-    color: #000000 !important;
-    background: transparent !important;
-    background-color: transparent !important;
-    font-family: system-ui, -apple-system, sans-serif !important;
+    color: #0f172a !important;
     print-color-adjust: exact !important;
     -webkit-print-color-adjust: exact !important;
-    font-size: 14px !important;
+    box-sizing: border-box !important;
   }
 
-  /* Headers and custom scaling */
   #print-area h1 {
     font-size: 20px !important;
     font-weight: 700 !important;
-    margin-bottom: 6px !important;
   }
 
   #print-area table {
     width: 100% !important;
-    font-size: 14px !important;
     border-collapse: collapse !important;
-    margin-top: 15px !important;
-    margin-bottom: 15px !important;
   }
 
   #print-area th {
-    font-size: 13px !important;
-    font-weight: 700 !important;
-    border-bottom: 1.5px solid #000000 !important;
-    padding-bottom: 8px !important;
-    text-transform: uppercase !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+    padding: 8px 10px !important;
   }
 
   #print-area td {
-    padding: 8px 0 !important;
-    font-size: 14px !important;
+    padding: 8px 10px !important;
   }
 
-  #print-area .text-slate-950,
-  #print-area .text-slate-900,
-  #print-area .font-semibold {
-    font-weight: 700 !important;
-  }
-
-  #print-area .text-sm {
-    font-size: 15px !important;
-  }
-
-  #print-area .text-xs {
-    font-size: 13px !important;
-  }
-
-  /* Keep table borders visible but crisp black */
-  #print-area .border-b,
-  #print-area .border-t,
-  #print-area .border-dashed {
-    border-color: #000000 !important;
-    border-width: 1px !important;
-    border-style: solid !important;
-  }
-  
-  #print-area .border-dashed {
-    border-style: dashed !important;
-  }
-
-  /* Explicitly hide any elements with no-print or their children */
+  /* Explicitly hide any elements with no-print or print:hidden */
   .no-print,
   .no-print *,
+  .print\:hidden,
+  .print\:hidden *,
   nav,
   footer,
   header,

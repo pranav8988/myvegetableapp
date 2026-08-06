@@ -1,6 +1,6 @@
 import { useState, useMemo, FormEvent, useEffect } from 'react';
 import { Vegetable, Sale, SaleItem, CustomerProfile } from '../types';
-import { Plus, Trash2, ShoppingCart, Check, User, Phone, FileText, Users, X, Clock, RefreshCw, Sparkles } from 'lucide-react';
+import { Plus, Trash2, ShoppingCart, Check, User, Phone, FileText, Users, X, Clock, RefreshCw, Sparkles, Calendar } from 'lucide-react';
 import { useLanguage } from '../lib/translations';
 
 interface NewSaleFormProps {
@@ -44,6 +44,7 @@ export default function NewSaleForm({
   const [quantity, setQuantity] = useState('');
 
   // Sale/Customer states
+  const [saleDate, setSaleDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [selectedProfileId, setSelectedProfileId] = useState('manual');
   const [customerName, setCustomerName] = useState('Walk-in Customer');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -84,6 +85,7 @@ export default function NewSaleForm({
         total: item.total
       }));
       setCartItems(mappedItems);
+      setSaleDate(editingSale.date || new Date().toISOString().split('T')[0]);
       setCustomerName(editingSale.customerName);
       setCustomerPhone(editingSale.customerPhone || '');
       setPaymentMethod(editingSale.paymentMethod);
@@ -103,6 +105,7 @@ export default function NewSaleForm({
         try {
           const draft = JSON.parse(savedDraft);
           setCartItems(draft.cartItems || []);
+          setSaleDate(draft.saleDate || new Date().toISOString().split('T')[0]);
           setCustomerName(draft.customerName || 'Walk-in Customer');
           setCustomerPhone(draft.customerPhone || '');
           setPaymentMethod(draft.paymentMethod || 'cash');
@@ -117,6 +120,7 @@ export default function NewSaleForm({
         }
       } else {
         setCartItems([]);
+        setSaleDate(new Date().toISOString().split('T')[0]);
         setSelectedProfileId('manual');
         setCustomerName('Walk-in Customer');
         setCustomerPhone('');
@@ -151,6 +155,7 @@ export default function NewSaleForm({
     const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const draft = {
       cartItems,
+      saleDate,
       customerName,
       customerPhone,
       paymentMethod,
@@ -163,7 +168,7 @@ export default function NewSaleForm({
     };
     localStorage.setItem('billing_draft', JSON.stringify(draft));
     setLastSavedTime(timeString);
-  }, [cartItems, customerName, customerPhone, paymentMethod, customAmountPaid, notes, selectedProfileId, consolidatedIds, previousPendingInput, editingSale]);
+  }, [cartItems, saleDate, customerName, customerPhone, paymentMethod, customAmountPaid, notes, selectedProfileId, consolidatedIds, previousPendingInput, editingSale]);
 
   // Calculate previous unpaid outstanding balance for the customer
   const previousUnpaidSales = useMemo(() => {
@@ -220,9 +225,11 @@ export default function NewSaleForm({
   };
 
   const handleClearBill = () => {
+    const todayStr = new Date().toISOString().split('T')[0];
     // If the cart is empty and other fields are default, reset instantly without prompt
     if (cartItems.length === 0 && customerName === 'Walk-in Customer' && customerPhone === '' && notes === '') {
       setCartItems([]);
+      setSaleDate(todayStr);
       setSelectedProfileId('manual');
       setCustomerName('Walk-in Customer');
       setCustomerPhone('');
@@ -230,6 +237,7 @@ export default function NewSaleForm({
       setCustomAmountPaid('');
       setNotes('');
       setConsolidatedIds([]);
+      setPreviousPendingInput('0');
       localStorage.removeItem('billing_draft');
       setLastSavedTime('');
       return;
@@ -242,6 +250,7 @@ export default function NewSaleForm({
         : 'Are you sure you want to remove all items from the cart and reset all customer details?',
       () => {
         setCartItems([]);
+        setSaleDate(todayStr);
         setSelectedProfileId('manual');
         setCustomerName('Walk-in Customer');
         setCustomerPhone('');
@@ -249,6 +258,7 @@ export default function NewSaleForm({
         setCustomAmountPaid('');
         setNotes('');
         setConsolidatedIds([]);
+        setPreviousPendingInput('0');
         localStorage.removeItem('billing_draft');
         setLastSavedTime('');
       }
@@ -393,6 +403,7 @@ export default function NewSaleForm({
     if (editingSale) {
       const updatedSale: Sale = {
         ...editingSale,
+        date: saleDate || editingSale.date,
         customerName: customerName.trim() || 'Walk-in Customer',
         customerPhone: customerPhone.trim() || undefined,
         items: cartItems.map((item, idx) => ({
@@ -409,23 +420,14 @@ export default function NewSaleForm({
       if (onUpdateSale) {
         onUpdateSale(updatedSale);
       }
+      onOpenInvoice(updatedSale);
     } else {
-      const newSaleId = `sale-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+      const newSaleId = `sale-${Date.now()}`;
+      const sequenceStr = String(sales.length + 1).padStart(4, '0');
+      const currentYear = new Date().getFullYear();
       
-      const currentYear = new Date().getFullYear().toString();
-      const targetCustomerName = customerName.trim() || 'Walk-in Customer';
-      
-      // Calculate sequence number for this specific customer name within the current year
-      const customerSalesThisYear = sales.filter(s => {
-        const isSameCustomer = s.customerName.toLowerCase().trim() === targetCustomerName.toLowerCase().trim();
-        const isThisYear = s.invoiceNumber.includes(`-${currentYear}-`);
-        return isSameCustomer && isThisYear;
-      });
-      
-      const sequenceNum = customerSalesThisYear.length + 1;
-      const sequenceStr = String(sequenceNum).padStart(3, '0');
-      
-      const slug = targetCustomerName
+      const slug = customerName
+        .trim()
         .toUpperCase()
         .replace(/[^A-Z0-9]/g, '')
         .slice(0, 10) || 'CUST';
@@ -435,7 +437,7 @@ export default function NewSaleForm({
       const newSale: Sale = {
         id: newSaleId,
         invoiceNumber: invoiceNum,
-        date: new Date().toISOString().split('T')[0],
+        date: saleDate || new Date().toISOString().split('T')[0],
         customerName: customerName.trim() || 'Walk-in Customer',
         customerPhone: customerPhone.trim() || undefined,
         items: cartItems.map((item, idx) => ({
@@ -454,8 +456,12 @@ export default function NewSaleForm({
       onOpenInvoice(newSale);
     }
 
-    // Reset whole form
+    // Reset whole form completely so all fields are blank for the next order
     setCartItems([]);
+    setSaleDate(new Date().toISOString().split('T')[0]);
+    setSelectedVegId('');
+    setCustomPrice('');
+    setQuantity('');
     setSelectedProfileId('manual');
     setCustomerName('Walk-in Customer');
     setCustomerPhone('');
@@ -463,8 +469,12 @@ export default function NewSaleForm({
     setCustomAmountPaid('');
     setNotes('');
     setConsolidatedIds([]);
+    setPreviousPendingInput('0');
     localStorage.removeItem('billing_draft');
     setLastSavedTime('');
+    if (editingSale && onCancelEdit) {
+      onCancelEdit();
+    }
   };
 
   const remainingBalance = subtotal - amountPaidDefault;
@@ -677,10 +687,43 @@ export default function NewSaleForm({
       <div className="xl:col-span-5">
         <form onSubmit={handleCheckoutSubmit} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 h-full flex flex-col justify-between">
           <div>
+            {/* Step 3 Header */}
             <h3 className="font-display font-bold text-slate-800 text-base mb-5 flex items-center gap-2 border-b border-slate-50 pb-3">
               <span className="bg-emerald-50 text-emerald-700 p-1 rounded-md text-xs">03</span>
               {t('customer_details')}
             </h3>
+
+            {/* Editable Invoice Date */}
+            <div className="mb-4 bg-slate-50 border border-slate-100 rounded-xl p-3">
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                  {language === 'mr' ? 'बिलाची तारीख (Invoice Date)' : 'Invoice Date'}
+                </label>
+                {saleDate !== new Date().toISOString().split('T')[0] ? (
+                  <button
+                    type="button"
+                    onClick={() => setSaleDate(new Date().toISOString().split('T')[0])}
+                    className="text-[9px] bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wide transition cursor-pointer flex items-center gap-1"
+                    title={language === 'mr' ? 'आजच्या तारखेवर रिसेट करा' : 'Reset to Today'}
+                  >
+                    <RefreshCw className="w-2.5 h-2.5" />
+                    {language === 'mr' ? 'आजची तारीख' : 'Set to Today'}
+                  </button>
+                ) : (
+                  <span className="text-[9px] bg-emerald-100 text-emerald-800 font-extrabold px-1.5 py-0.2 rounded-full uppercase">
+                    {language === 'mr' ? 'आजची तारीख' : 'Today'}
+                  </span>
+                )}
+              </div>
+              <input
+                type="date"
+                value={saleDate}
+                onChange={(e) => setSaleDate(e.target.value)}
+                className="w-full text-xs border border-slate-200 bg-white focus:border-emerald-500 focus:outline-hidden p-2 rounded-lg font-mono font-bold text-slate-800 cursor-pointer"
+                required
+              />
+            </div>
 
             {/* Customer Profile Selector */}
             <div className="mb-4 bg-slate-50 border border-slate-100 rounded-xl p-3">

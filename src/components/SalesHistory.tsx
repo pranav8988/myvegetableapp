@@ -1,7 +1,8 @@
 import { useState, useMemo, FormEvent } from 'react';
 import { Sale } from '../types';
-import { Search, Eye, Trash2, CheckCircle2, Calendar, Filter, RefreshCcw, Edit, Download, Printer } from 'lucide-react';
+import { Search, Eye, Trash2, CheckCircle2, Calendar, Filter, RefreshCcw, Edit, Download, Printer, FileSpreadsheet } from 'lucide-react';
 import { useLanguage } from '../lib/translations';
+import * as XLSX from 'xlsx';
 
 interface SalesHistoryProps {
   sales: Sale[];
@@ -32,9 +33,10 @@ export default function SalesHistory({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [methodFilter, setMethodFilter] = useState<string>('all');
   
-  // Date Range Filters
+  // Date & Month Range Filters
   const [startDateFilter, setStartDateFilter] = useState<string>('');
   const [endDateFilter, setEndDateFilter] = useState<string>('');
+  const [selectedMonthInput, setSelectedMonthInput] = useState<string>('');
 
   // Direct state for quick pay modal
   const [selectedPaySale, setSelectedPaySale] = useState<Sale | null>(null);
@@ -47,29 +49,97 @@ export default function SalesHistory({
     setMethodFilter('all');
     setStartDateFilter('');
     setEndDateFilter('');
+    setSelectedMonthInput('');
   };
 
   // Quick Period Presets Selector
   const handleQuickRange = (range: string) => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    setSelectedMonthInput('');
+
     if (range === 'today') {
       setStartDateFilter(todayStr);
       setEndDateFilter(todayStr);
+    } else if (range === 'yesterday') {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      setStartDateFilter(yesterday.toISOString().split('T')[0]);
+      setEndDateFilter(yesterday.toISOString().split('T')[0]);
     } else if (range === 'week') {
       const lastWeek = new Date();
       lastWeek.setDate(lastWeek.getDate() - 7);
-      const lastWeekStr = lastWeek.toISOString().split('T')[0];
-      setStartDateFilter(lastWeekStr);
+      setStartDateFilter(lastWeek.toISOString().split('T')[0]);
       setEndDateFilter(todayStr);
     } else if (range === 'month') {
-      const firstDayOfMonth = new Date();
-      firstDayOfMonth.setDate(1);
-      const firstDayStr = firstDayOfMonth.toISOString().split('T')[0];
+      const firstDayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
       setStartDateFilter(firstDayStr);
       setEndDateFilter(todayStr);
+    } else if (range === 'last_month') {
+      const firstDayLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const lastDayLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+      setStartDateFilter(firstDayLastMonth.toISOString().split('T')[0]);
+      setEndDateFilter(lastDayLastMonth.toISOString().split('T')[0]);
     } else if (range === 'all') {
       setStartDateFilter('');
       setEndDateFilter('');
+    }
+  };
+
+  // Month Picker Selector (e.g. "2026-07")
+  const handleMonthPickerChange = (yearMonth: string) => {
+    setSelectedMonthInput(yearMonth);
+    if (!yearMonth) {
+      setStartDateFilter('');
+      setEndDateFilter('');
+      return;
+    }
+    const [year, month] = yearMonth.split('-').map(Number);
+    const firstDay = new Date(year, month - 1, 1);
+    const lastDay = new Date(year, month, 0);
+    setStartDateFilter(firstDay.toISOString().split('T')[0]);
+    setEndDateFilter(lastDay.toISOString().split('T')[0]);
+  };
+
+  // Export Filtered Statement to Excel (.xlsx)
+  const handleExportFilteredXlsx = () => {
+    try {
+      const wb = XLSX.utils.book_new();
+
+      const ledgerRows = filteredSales.map((s) => ({
+        Invoice_Number: s.invoiceNumber,
+        Date: s.date,
+        Customer_Name: s.customerName,
+        Customer_Phone: s.customerPhone || '',
+        Total_Amount: s.totalAmount,
+        Amount_Paid: s.amountPaid,
+        Balance_Due: s.totalAmount - s.amountPaid,
+        Payment_Method: s.paymentMethod,
+        Payment_Status: s.paymentStatus,
+        Notes: s.notes || '',
+        Items_Summary: s.items.map((i) => `${i.vegName}(${i.quantity}kg)`).join(', ')
+      }));
+
+      const wsLedger = XLSX.utils.json_to_sheet(ledgerRows);
+      
+      // Auto column widths
+      if (ledgerRows.length > 0) {
+        const keys = Object.keys(ledgerRows[0]);
+        wsLedger['!cols'] = keys.map((k) => {
+          let maxLen = k.length;
+          ledgerRows.forEach((r: any) => {
+            const val = String(r[k] ?? '');
+            if (val.length > maxLen) maxLen = val.length;
+          });
+          return { wch: Math.min(Math.max(maxLen + 4, 12), 48) };
+        });
+      }
+      XLSX.utils.book_append_sheet(wb, wsLedger, 'Sales_Statement');
+
+      const dateTag = startDateFilter && endDateFilter ? `${startDateFilter}_to_${endDateFilter}` : (selectedMonthInput || 'filtered');
+      XLSX.writeFile(wb, `sales_journal_statement_${dateTag}.xlsx`);
+    } catch (err) {
+      console.error('Export failed', err);
     }
   };
 
@@ -155,8 +225,8 @@ export default function SalesHistory({
       {/* ========================================== */}
       <div className="print:hidden flex flex-col gap-6">
         
-        {/* 1. Quick Filters & Stats Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* 1. Top Stat Cards (3 Columns) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* Metric Card 1 */}
           <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-2xs">
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
@@ -185,30 +255,49 @@ export default function SalesHistory({
               {language === 'mr' ? 'येणे बाकी' : 'To be collected'}
             </p>
           </div>
-          
-          {/* Metric Card 4: Reports & Reset Actions */}
-          <div className="bg-slate-50 border border-slate-200 border-dashed rounded-xl p-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-            <div>
-              <p className="text-[11px] font-bold text-slate-700">{language === 'mr' ? 'अहवाल आणि फिल्टर्स' : 'Report & Actions'}</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">{language === 'mr' ? 'अहवाल डाउनलोड करा किंवा फिल्टर बदला' : 'Save PDF report or reset filters'}</p>
-            </div>
-            <div className="flex gap-2 shrink-0">
-              <button
-                onClick={handlePrintReport}
-                className="py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition flex items-center gap-1.5 text-xs cursor-pointer shadow-xs"
-                title={language === 'mr' ? 'अहवाल डाऊनलोड / प्रिंट करा' : 'Print / Download Report'}
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>{language === 'mr' ? 'प्रिंट / PDF' : 'Print/PDF'}</span>
-              </button>
-              <button
-                onClick={handleResetFilters}
-                className="p-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 text-slate-600 transition cursor-pointer"
-                title={language === 'mr' ? 'सर्व फिल्टर्स पूर्ववत करा' : 'Reset All Filters'}
-              >
-                <RefreshCcw className="w-3.5 h-3.5" />
-              </button>
-            </div>
+        </div>
+
+        {/* Dedicated Full-Width Report & Actions Bar */}
+        <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 shadow-2xs">
+          <div>
+            <p className="text-xs font-bold text-slate-800 flex items-center gap-2">
+              <Printer className="w-4 h-4 text-emerald-600" />
+              {language === 'mr' ? 'अहवाल आणि एक्सपोर्ट टूल्स' : 'Report & Export Actions'}
+            </p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              {language === 'mr' 
+                ? 'खालील फिल्टरनुसार निवडलेल्या कालावधीचा / महिन्याचा अहवाल प्रिंट करा किंवा Excel फाईल डाउनलोड करा.' 
+                : 'Print statement PDF or export Excel (.xlsx) spreadsheet for the filtered date range.'}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 shrink-0 w-full sm:w-auto justify-start sm:justify-end">
+            <button
+              onClick={handlePrintReport}
+              className="flex-1 sm:flex-initial py-2 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-xs"
+              title={language === 'mr' ? 'अहवाल प्रिंट करा किंवा PDF जतन करा' : 'Print or Save Statement PDF'}
+            >
+              <Printer className="w-4 h-4" />
+              <span>{language === 'mr' ? 'प्रिंट / PDF' : 'Print / Save PDF'}</span>
+            </button>
+            
+            <button
+              onClick={handleExportFilteredXlsx}
+              className="flex-1 sm:flex-initial py-2 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold transition flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-xs"
+              title={language === 'mr' ? 'निवडलेल्या डेटाची Excel फाईल डाउनलोड करा' : 'Download Filtered Excel (.xlsx)'}
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+              <span>{language === 'mr' ? 'Excel (.xlsx)' : 'Excel (.xlsx)'}</span>
+            </button>
+
+            <button
+              onClick={handleResetFilters}
+              className="py-2 px-3.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold transition flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-xs"
+              title={language === 'mr' ? 'सर्व फिल्टर्स पूर्ववत करा' : 'Reset All Filters'}
+            >
+              <RefreshCcw className="w-3.5 h-3.5" />
+              <span>{language === 'mr' ? 'रीसेट' : 'Reset'}</span>
+            </button>
           </div>
         </div>
 
@@ -229,22 +318,24 @@ export default function SalesHistory({
               />
             </div>
 
-            {/* Quick Period selector */}
+            {/* Quick Period Preset Selector */}
             <div className="relative lg:col-span-3">
               <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <select
                 onChange={(e) => handleQuickRange(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 text-xs border border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-hidden text-slate-600 cursor-pointer font-semibold"
+                className="w-full pl-9 pr-4 py-2.5 text-xs border border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-hidden text-slate-700 cursor-pointer font-semibold"
                 defaultValue="all"
               >
-                <option value="all">{language === 'mr' ? '📅 सर्व कालावधी अहवाल' : '📅 All Time Report'}</option>
-                <option value="today">{language === 'mr' ? '📅 आजची कामगिरी (Today)' : '📅 Today\'s Performance'}</option>
+                <option value="all">{language === 'mr' ? '📅 सर्व कालावधी (All Time)' : '📅 All Time Report'}</option>
+                <option value="today">{language === 'mr' ? '📅 आजची विक्री (Today)' : '📅 Today\'s Performance'}</option>
+                <option value="yesterday">{language === 'mr' ? '📅 कालची विक्री (Yesterday)' : '📅 Yesterday\'s Sales'}</option>
                 <option value="week">{language === 'mr' ? '📅 चालू आठवडा (This Week)' : '📅 This Week\'s Summary'}</option>
                 <option value="month">{language === 'mr' ? '📅 चालू महिना (This Month)' : '📅 This Month\'s Report'}</option>
+                <option value="last_month">{language === 'mr' ? '📅 मागील महिना (Last Month)' : '📅 Last Month Statement'}</option>
               </select>
             </div>
 
-            {/* Status Filter */}
+            {/* Payment Status Filter */}
             <div className="relative lg:col-span-2">
               <Filter className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <select
@@ -252,14 +343,14 @@ export default function SalesHistory({
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="w-full pl-9 pr-4 py-2.5 text-xs border border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-hidden text-slate-600 cursor-pointer"
               >
-                <option value="all">{language === 'mr' ? 'सर्व पेमेंट स्थिती' : 'All Statuses'}</option>
+                <option value="all">{language === 'mr' ? 'सर्व स्थिती' : 'All Statuses'}</option>
                 <option value="paid">{language === 'mr' ? 'पूर्ण भरलेले' : 'Fully Paid'}</option>
-                <option value="pending">{language === 'mr' ? 'बाकी असलेले' : 'Pending'}</option>
+                <option value="pending">{language === 'mr' ? 'उधारी बाकी' : 'Pending Dues'}</option>
                 <option value="partial">{language === 'mr' ? 'अंशत: भरलेले' : 'Partial'}</option>
               </select>
             </div>
 
-            {/* Method Filter */}
+            {/* Payment Method Filter */}
             <div className="relative lg:col-span-2">
               <Filter className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <select
@@ -267,7 +358,7 @@ export default function SalesHistory({
                 onChange={(e) => setMethodFilter(e.target.value)}
                 className="w-full pl-9 pr-4 py-2.5 text-xs border border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-hidden text-slate-600 cursor-pointer"
               >
-                <option value="all">{language === 'mr' ? 'सर्व पेमेंट पद्धती' : 'All Modes'}</option>
+                <option value="all">{language === 'mr' ? 'सर्व पद्धती' : 'All Modes'}</option>
                 <option value="cash">💵 {language === 'mr' ? 'रोख (Cash)' : 'Cash'}</option>
                 <option value="upi">📱 {language === 'mr' ? 'ऑनलाईन (UPI)' : 'UPI'}</option>
                 <option value="credit">🤝 {t('credit')}</option>
@@ -276,31 +367,50 @@ export default function SalesHistory({
 
           </div>
 
-          {/* Precise Date Range Picker Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-slate-100 pt-3">
+          {/* Month Picker & Precise Date Range Picker Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border-t border-slate-100 pt-3">
+            {/* Specific Month Selector */}
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] text-emerald-700 font-extrabold uppercase tracking-wide pointer-events-none">
+                {language === 'mr' ? 'महिना:' : 'Month:'}
+              </span>
+              <input
+                type="month"
+                value={selectedMonthInput}
+                onChange={(e) => handleMonthPickerChange(e.target.value)}
+                className="w-full pl-16 pr-3 py-2 text-xs border border-emerald-300 bg-emerald-50/40 rounded-lg focus:border-emerald-500 focus:outline-hidden text-emerald-900 font-mono font-bold cursor-pointer"
+              />
+            </div>
+
             {/* Start Date Filter */}
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] text-slate-400 font-extrabold uppercase tracking-wide pointer-events-none">
-                {language === 'mr' ? 'पासून (From):' : 'From Date:'}
+                {language === 'mr' ? 'पासून:' : 'From:'}
               </span>
               <input
                 type="date"
                 value={startDateFilter}
-                onChange={(e) => setStartDateFilter(e.target.value)}
-                className="w-full pl-24 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-hidden text-slate-600 font-mono"
+                onChange={(e) => {
+                  setSelectedMonthInput('');
+                  setStartDateFilter(e.target.value);
+                }}
+                className="w-full pl-16 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-hidden text-slate-600 font-mono"
               />
             </div>
 
             {/* End Date Filter */}
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] text-slate-400 font-extrabold uppercase tracking-wide pointer-events-none">
-                {language === 'mr' ? 'पर्यंत (To):' : 'To Date:'}
+                {language === 'mr' ? 'पर्यंत:' : 'To:'}
               </span>
               <input
                 type="date"
                 value={endDateFilter}
-                onChange={(e) => setEndDateFilter(e.target.value)}
-                className="w-full pl-20 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-hidden text-slate-600 font-mono"
+                onChange={(e) => {
+                  setSelectedMonthInput('');
+                  setEndDateFilter(e.target.value);
+                }}
+                className="w-full pl-14 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-hidden text-slate-600 font-mono"
               />
             </div>
           </div>
@@ -470,7 +580,7 @@ export default function SalesHistory({
       {/* =================================================== */}
       {/* PRINT-ONLY SALES REPORT SECTION (Visible on print) */}
       {/* =================================================== */}
-      <div className="hidden print:block p-8 bg-white text-slate-800" style={{ fontFamily: 'system-ui, sans-serif', color: '#1e293b' }}>
+      <div id="print-area" className="hidden print:block p-8 bg-white text-slate-800" style={{ fontFamily: 'system-ui, sans-serif', color: '#1e293b' }}>
         {/* Print Header */}
         <div className="text-center border-b-2 border-slate-200 pb-6 mb-6">
           <div className="flex justify-between items-start mb-4 text-left">
