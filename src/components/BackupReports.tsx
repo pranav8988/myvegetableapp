@@ -3,6 +3,7 @@ import { Vegetable, Sale, CustomerProfile } from '../types';
 import { Download, Users, Calendar, FileText, CheckCircle, Database, Clock, ArrowRight, Share2, Copy, Check, AlertCircle, FileSpreadsheet } from 'lucide-react';
 import { useLanguage } from '../lib/translations';
 import * as XLSX from 'xlsx';
+import { downloadXlsxWorkbook } from '../lib/excelHelper';
 
 interface BackupReportsProps {
   sales: Sale[];
@@ -12,6 +13,7 @@ interface BackupReportsProps {
   vegetables: Vegetable[];
   shopDetails: { name: string; address?: string; phone?: string; gstin?: string; logo?: string };
   onRestoreDirect: (parsed: any) => boolean;
+  showAlert?: (title: string, message: string) => void;
 }
 
 export default function BackupReports({
@@ -22,6 +24,7 @@ export default function BackupReports({
   vegetables,
   shopDetails,
   onRestoreDirect,
+  showAlert,
 }: BackupReportsProps) {
   const { t, language } = useLanguage();
 
@@ -107,9 +110,25 @@ export default function BackupReports({
       XLSX.utils.book_append_sheet(wb, wsCust, 'Customer_Profiles');
 
       const dateStr = new Date().toISOString().split('T')[0];
-      XLSX.writeFile(wb, `backup_full_store_data_${dateStr}.xlsx`);
+      const filename = `backup_full_store_data_${dateStr}.xlsx`;
+      downloadXlsxWorkbook(wb, filename);
+
+      if (showAlert) {
+        showAlert(
+          language === 'mr' ? 'पूर्ण एक्सेल बॅकअप डाऊनलोड झाला!' : 'Full Excel Backup Downloaded!',
+          language === 'mr' 
+            ? 'सर्व विक्री, भाजीपाला कॅटलॉग आणि ग्राहक खाती एक्सेल (.xlsx) फाईलमध्ये सेव्ह झाली आहेत.'
+            : 'All sales ledger, vegetable catalog, and customer accounts saved to an Excel (.xlsx) file.'
+        );
+      }
     } catch (err) {
       console.error('XLSX export failed', err);
+      if (showAlert) {
+        showAlert(
+          language === 'mr' ? 'अडचण आली' : 'Backup Failed',
+          language === 'mr' ? 'कृपया पुन्हा प्रयत्न करा.' : 'Failed to export Excel backup.'
+        );
+      }
     }
   };
   
@@ -136,6 +155,14 @@ export default function BackupReports({
       navigator.clipboard.writeText(dataStr);
       setCopiedFullBackup(true);
       setTimeout(() => setCopiedFullBackup(false), 2000);
+      if (showAlert) {
+        showAlert(
+          language === 'mr' ? 'बॅकअप कॉपी झाला!' : 'Backup Copied!',
+          language === 'mr' 
+            ? 'संपूर्ण बॅकअप डेटा क्लिपबोर्डवर कॉपी झाला आहे. सुरक्षिततेसाठी हा मजकूर नोटपॅड किंवा व्हॉट्सॲपवर सेव्ह करा.'
+            : 'Complete store backup text copied to clipboard. You can save or email it for safe keeping.'
+        );
+      }
     } catch (err) {
       console.error("Failed to copy", err);
     }
@@ -151,6 +178,12 @@ export default function BackupReports({
           title: language === 'mr' ? `${shopDetails.name} बॅकअप - ${dateStr}` : `${shopDetails.name} Backup - ${dateStr}`,
           text: dataStr,
         });
+        if (showAlert) {
+          showAlert(
+            language === 'mr' ? 'बॅकअप शेअर झाला!' : 'Backup Shared!',
+            language === 'mr' ? 'बॅकअप फाईल यशस्वीरित्या शेअर केली गेली आहे.' : 'Backup text shared successfully.'
+          );
+        }
       } catch (err) {
         // user cancelled or failed, fallback to copy
         handleCopyFullText();

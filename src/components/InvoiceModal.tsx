@@ -16,6 +16,7 @@ interface InvoiceModalProps {
     gstin?: string;
     logo?: string;
   };
+  showAlert?: (title: string, message: string) => void;
 }
 
 // Convert base64 dataUrl to Blob for reliable mobile download & sharing
@@ -39,7 +40,8 @@ export default function InvoiceModal({
     address: 'Shop No. 4, Green Market, Sector 15, City - 400012',
     phone: '+91 98765 43210',
     gstin: '27AAAAA1111A1Z1'
-  }
+  },
+  showAlert
 }: InvoiceModalProps) {
   const { t, language } = useLanguage();
   const invoiceRef = useRef<HTMLDivElement>(null);
@@ -128,17 +130,32 @@ export default function InvoiceModal({
       const blob = dataUrlToBlob(capturedImage);
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
+      a.style.display = 'none';
       a.href = blobUrl;
       a.download = `Invoice-${sale.invoiceNumber}.png`;
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+      }, 2000);
+      if (showAlert) {
+        showAlert(
+          language === 'mr' ? 'बिल फोटो डाऊनलोड झाले!' : 'Bill Image Downloaded!',
+          language === 'mr' ? 'बीजक फोटो तुमच्या फोन किंवा डिव्हाइसवर यशस्वीरित्या सेव्ह झाला.' : 'Invoice image successfully saved to your downloads.'
+        );
+      }
     } catch (e) {
       const a = document.createElement('a');
       a.href = capturedImage;
       a.download = `Invoice-${sale.invoiceNumber}.png`;
       a.click();
+      if (showAlert) {
+        showAlert(
+          language === 'mr' ? 'बिल डाऊनलोड झाले!' : 'Bill Downloaded!',
+          language === 'mr' ? 'बीजक फोटो सेव्ह झाला.' : 'Invoice image saved.'
+        );
+      }
     }
   };
 
@@ -153,6 +170,14 @@ export default function InvoiceModal({
         ]);
         setImageCopied(true);
         setTimeout(() => setImageCopied(false), 2500);
+        if (showAlert) {
+          showAlert(
+            language === 'mr' ? 'फोटो कॉपी झाला!' : 'Receipt Image Copied!',
+            language === 'mr' 
+              ? 'बिल फोटो क्लिपबोर्डवर कॉपी झाला आहे. तुम्ही व्हॉट्सॲप किंवा कोणत्याही ॲपमध्ये थेट पेस्ट करू शकता.' 
+              : 'Invoice image copied to clipboard. You can paste it directly into WhatsApp or messaging apps.'
+          );
+        }
         return;
       }
     } catch (err) {
@@ -162,7 +187,7 @@ export default function InvoiceModal({
     copyToClipboard();
   };
 
-  // Cross-device mobile share handler (Web Share API with fallback)
+  // Cross-device mobile share handler: Attaches the ACTUAL IMAGE FILE directly to native share sheet / WhatsApp
   const handleShareCapturedImage = async () => {
     if (!capturedImage) return;
 
@@ -170,23 +195,35 @@ export default function InvoiceModal({
       const blob = dataUrlToBlob(capturedImage);
       const file = new File([blob], `Invoice-${sale.invoiceNumber}.png`, { type: 'image/png' });
 
+      // Native Web Share API with binary File support (WhatsApp, Telegram, Messages attach the PNG)
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
-          title: `Invoice - ${sale.invoiceNumber}`,
-          text: `Invoice ${sale.invoiceNumber} from ${shopDetails.name}`,
-          files: [file],
+          title: `Invoice ${sale.invoiceNumber}`,
+          files: [file], // IMPORTANT: Do NOT include text here to ensure apps attach the IMAGE directly
         });
+        if (showAlert) {
+          showAlert(
+            language === 'mr' ? 'शेअर यशस्वी!' : 'Shared Successfully!',
+            language === 'mr' ? 'बिल इमेज शेअर केली गेली आहे.' : 'Invoice image shared via system share sheet.'
+          );
+        }
         return;
       }
     } catch (err: any) {
-      if (err.name === 'AbortError') return;
-      console.log('Native image share failed or cancelled', err);
+      if (err.name === 'AbortError') return; // User closed share dialog
+      console.warn('Native image file share failed:', err);
     }
 
-    // Fallback to WhatsApp share
-    const targetPhone = whatsappNumber ? `91${whatsappNumber}` : '';
-    const text = getWhatsAppText();
-    window.open(`https://api.whatsapp.com/send?phone=${targetPhone}&text=${text}`, '_blank');
+    // Fallback if browser doesn't support file sharing: Copy image to clipboard and trigger download
+    handleCopyImageToClipboard();
+    if (showAlert) {
+      showAlert(
+        language === 'mr' ? 'फोटो क्लिपबोर्डवर कॉपी झाला' : 'Image Ready to Share',
+        language === 'mr' 
+          ? 'बिल फोटो क्लिपबोर्डवर कॉपी झाला आहे आणि डाउनलोड सुरू आहे. व्हॉट्सॲप चॅटमध्ये थेट पेस्ट करा.'
+          : 'Invoice image copied to clipboard and downloaded. You can paste the image directly in WhatsApp!'
+      );
+    }
   };
 
   const getWhatsAppText = () => {

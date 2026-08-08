@@ -767,6 +767,7 @@ export default function App() {
                 showConfirm={showConfirm}
                 onEditSale={handleStartEditSale}
                 shopDetails={shopDetails}
+                showAlert={showAlert}
               />
             )}
 
@@ -801,6 +802,7 @@ export default function App() {
                 vegetables={vegetables}
                 shopDetails={shopDetails}
                 onRestoreDirect={handleRestoreDirect}
+                showAlert={showAlert}
               />
             )}
           </div>
@@ -904,6 +906,7 @@ export default function App() {
             sale={activeInvoiceSale}
             onClose={() => setActiveInvoiceSale(null)}
             shopDetails={shopDetails}
+            showAlert={showAlert}
           />
         )}
       </AnimatePresence>

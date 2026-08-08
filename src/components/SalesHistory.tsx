@@ -3,6 +3,7 @@ import { Sale } from '../types';
 import { Search, Eye, Trash2, CheckCircle2, Calendar, Filter, RefreshCcw, Edit, Download, Printer, FileSpreadsheet } from 'lucide-react';
 import { useLanguage } from '../lib/translations';
 import * as XLSX from 'xlsx';
+import { downloadXlsxWorkbook } from '../lib/excelHelper';
 
 interface SalesHistoryProps {
   sales: Sale[];
@@ -18,6 +19,7 @@ interface SalesHistoryProps {
     gstin?: string;
     logo?: string;
   };
+  showAlert?: (title: string, message: string) => void;
 }
 
 export default function SalesHistory({
@@ -28,6 +30,7 @@ export default function SalesHistory({
   showConfirm,
   onEditSale,
   shopDetails,
+  showAlert,
 }: SalesHistoryProps) {
   const { t, language } = useLanguage();
   const [search, setSearch] = useState('');
@@ -138,9 +141,27 @@ export default function SalesHistory({
       XLSX.utils.book_append_sheet(wb, wsLedger, 'Sales_Statement');
 
       const dateTag = startDateFilter && endDateFilter ? `${startDateFilter}_to_${endDateFilter}` : (selectedMonthInput || 'filtered');
-      XLSX.writeFile(wb, `sales_journal_statement_${dateTag}.xlsx`);
+      const filename = `sales_journal_statement_${dateTag}.xlsx`;
+      
+      // Use universal mobile & web blob downloader
+      downloadXlsxWorkbook(wb, filename);
+
+      if (showAlert) {
+        showAlert(
+          language === 'mr' ? 'Excel अहवाल डाऊनलोड झाला!' : 'Excel Statement Exported!',
+          language === 'mr' 
+            ? `${filteredSales.length} बिलांचा विक्री अहवाल यशस्वीरित्या Excel (.xlsx) फाईलमध्ये सेव्ह झाला.`
+            : `Sales report of ${filteredSales.length} invoices successfully downloaded as an Excel (.xlsx) spreadsheet.`
+        );
+      }
     } catch (err) {
       console.error('Export failed', err);
+      if (showAlert) {
+        showAlert(
+          language === 'mr' ? 'अडचण आली' : 'Export Failed',
+          language === 'mr' ? 'कृपया पुन्हा प्रयत्न करा.' : 'Failed to export spreadsheet. Please try again.'
+        );
+      }
     }
   };
 
