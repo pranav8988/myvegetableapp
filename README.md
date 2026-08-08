@@ -1,9 +1,9 @@
 # App Configuration
-# Developed by Pranav Shinde for बाळ भैरव भाजीपाला केंद्र
+# Developed by Pranav Shinde Vegetable Management System
 
 # ==========================================
 # Balbhairav Vegetable Center App Environment
 # Developer: Pranav Shinde
 # ==========================================
 
-# Created by Pranav Shinde | Balbhairav Billing System
+# Created by Pranav Shinde | Billing System
