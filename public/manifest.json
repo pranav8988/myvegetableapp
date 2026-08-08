@@ -2,21 +2,21 @@
   "name": "VEGI BILLING APP",
   "short_name": "VEGI BILLING APP",
   "description": "Vegetable Billing POS, Daily Sales Journal, and Customer Credit Ledger App",
-  "start_url": "/",
-  "id": "/",
+  "start_url": "./",
+  "id": "./",
   "display": "standalone",
   "background_color": "#f8fafc",
   "theme_color": "#059669",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/logo.svg",
+      "src": "./logo.svg",
       "sizes": "512x512 192x192 144x144 96x96 48x48",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
-      "src": "/logo.jpg",
+      "src": "./logo.jpg",
       "sizes": "512x512",
       "type": "image/jpeg",
       "purpose": "any"
@@ -27,8 +27,8 @@
     {
       "name": "New Bill (POS)",
       "short_name": "New Bill",
-      "url": "/",
-      "icons": [{ "src": "/logo.svg", "sizes": "192x192" }]
+      "url": "./",
+      "icons": [{ "src": "./logo.svg", "sizes": "192x192" }]
     }
   ]
 }
