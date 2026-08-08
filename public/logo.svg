@@ -1,0 +1,172 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Rich Radial Glow -->
+    <radialGradient id="bgGlow" cx="50%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="45%" stop-color="#047857" />
+      <stop offset="85%" stop-color="#064e3b" />
+      <stop offset="100%" stop-color="#022c22" />
+    </radialGradient>
+
+    <!-- Metallic Gold Rim Gradient -->
+    <linearGradient id="goldRim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="30%" stop-color="#eab308" />
+      <stop offset="70%" stop-color="#ca8a04" />
+      <stop offset="100%" stop-color="#854d0e" />
+    </linearGradient>
+
+    <!-- Glossy Tomato Gradient -->
+    <radialGradient id="tomatoBody" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#ff6b6b" />
+      <stop offset="40%" stop-color="#ef4444" />
+      <stop offset="80%" stop-color="#b91c1c" />
+      <stop offset="100%" stop-color="#7f1d1d" />
+    </radialGradient>
+
+    <!-- Crisp Carrot Gradient -->
+    <linearGradient id="carrotBody" x1="20%" y1="10%" x2="80%" y2="90%">
+      <stop offset="0%" stop-color="#fed7aa" />
+      <stop offset="25%" stop-color="#fb923c" />
+      <stop offset="70%" stop-color="#ea580c" />
+      <stop offset="100%" stop-color="#9a3412" />
+    </linearGradient>
+
+    <!-- Vibrant Purple Eggplant / Brinjal Gradient -->
+    <radialGradient id="eggplantBody" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#c084fc" />
+      <stop offset="40%" stop-color="#9333ea" />
+      <stop offset="80%" stop-color="#6b21a8" />
+      <stop offset="100%" stop-color="#3b0764" />
+    </radialGradient>
+
+    <!-- Golden Corn Gradient -->
+    <linearGradient id="cornBody" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="40%" stop-color="#eab308" />
+      <stop offset="100%" stop-color="#ca8a04" />
+    </linearGradient>
+
+    <!-- Fresh Green Leaf Gradient -->
+    <linearGradient id="leafGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#86efac" />
+      <stop offset="50%" stop-color="#22c55e" />
+      <stop offset="100%" stop-color="#15803d" />
+    </linearGradient>
+
+    <!-- 3D Shadow Filter -->
+    <filter id="shadow3D" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.4" />
+    </filter>
+
+    <!-- Soft Glow Filter -->
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- 1. Outer App Squircle with Gold Border -->
+  <rect width="512" height="512" rx="116" fill="url(#bgGlow)" />
+  <rect x="8" y="8" width="496" height="496" rx="108" fill="none" stroke="url(#goldRim)" stroke-width="6" opacity="0.85" />
+
+  <!-- 2. Decorative Background Sunburst & Circular Stage -->
+  <circle cx="256" cy="220" r="160" fill="#ffffff" opacity="0.08" />
+  <circle cx="256" cy="220" r="130" fill="#ffffff" opacity="0.06" />
+
+  <!-- 3. Vegetable Group Composition -->
+  <g filter="url(#shadow3D)">
+    
+    <!-- A. Big Fresh Leafy Cabbage Background (Emerald/Lime) -->
+    <g transform="translate(256, 215)">
+      <!-- Outer Leaves -->
+      <path d="M-110,-10 C-110,-75 -50,-115 0,-115 C50,-115 110,-75 110,-10 C110,65 50,105 0,105 C-50,105 -110,65 -110,-10 Z" fill="url(#leafGrad)" />
+      <!-- Layered Ribs -->
+      <path d="M-85,-5 C-85,-55 -38,-90 0,-90 C38,-90 85,-55 85,-5 C85,50 38,82 0,82 C-38,82 -85,50 -85,-5 Z" fill="#4ade80" opacity="0.9" />
+      <path d="M-60,0 C-60,-40 -25,-65 0,-65 C25,-65 60,-40 60,0 C60,38 25,60 0,60 C-25,60 -60,38 -60,0 Z" fill="#bbf7d0" opacity="0.95" />
+      <!-- Cabbage Veins -->
+      <path d="M0,-80 L0,70" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.6" />
+      <path d="M0,-40 Q-30,-25 -50,-15" stroke="#ffffff" stroke-width="2.5" fill="none" opacity="0.5" />
+      <path d="M0,-40 Q30,-25 50,-15" stroke="#ffffff" stroke-width="2.5" fill="none" opacity="0.5" />
+      <path d="M0,10 Q-30,25 -45,35" stroke="#ffffff" stroke-width="2.5" fill="none" opacity="0.5" />
+      <path d="M0,10 Q30,25 45,35" stroke="#ffffff" stroke-width="2.5" fill="none" opacity="0.5" />
+    </g>
+
+    <!-- B. Vibrant Purple Eggplant / Brinjal (Left-Back) -->
+    <g transform="translate(130, 160) rotate(-22)">
+      <path d="M25,15 C10,35 12,75 22,105 C30,130 50,140 65,135 C80,130 88,110 85,85 C80,50 60,20 45,15 Z" fill="url(#eggplantBody)" />
+      <!-- Glossy Reflection -->
+      <path d="M32,35 C26,50 28,80 35,100" stroke="#ffffff" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.5" />
+      <!-- Green Calyx / Crown -->
+      <path d="M35,15 L22,8 L35,4 L45,-5 L50,6 L62,5 L52,15 Z" fill="#22c55e" />
+      <path d="M42,-4 C40,-12 45,-16 48,-18" stroke="#16a34a" stroke-width="4" stroke-linecap="round" fill="none" />
+    </g>
+
+    <!-- C. Golden Sweet Corn (Right-Back) -->
+    <g transform="translate(325, 155) rotate(22)">
+      <!-- Corn Husk Leaves -->
+      <path d="M10,40 C-5,10 0,-15 0,-15 C0,-15 20,5 25,35 Z" fill="#22c55e" />
+      <path d="M50,40 C65,10 60,-15 60,-15 C60,-15 40,5 35,35 Z" fill="#16a34a" />
+      <!-- Corn Body -->
+      <path d="M12,30 C8,50 15,90 28,110 C35,120 45,120 50,110 C62,90 68,50 64,30 C58,15 20,15 12,30 Z" fill="url(#cornBody)" />
+      <!-- Kernel Grid Lines -->
+      <line x1="20" y1="45" x2="56" y2="45" stroke="#ca8a04" stroke-width="2" stroke-linecap="round" opacity="0.6" />
+      <line x1="22" y1="62" x2="55" y2="62" stroke="#ca8a04" stroke-width="2" stroke-linecap="round" opacity="0.6" />
+      <line x1="25" y1="79" x2="52" y2="79" stroke="#ca8a04" stroke-width="2" stroke-linecap="round" opacity="0.6" />
+      <line x1="28" y1="95" x2="48" y2="95" stroke="#ca8a04" stroke-width="2" stroke-linecap="round" opacity="0.6" />
+      <line x1="38" y1="28" x2="38" y2="108" stroke="#ca8a04" stroke-width="2" stroke-linecap="round" opacity="0.5" />
+    </g>
+
+    <!-- D. Ripe Glossy Red Tomato (Front Left) -->
+    <g transform="translate(140, 215)">
+      <circle cx="50" cy="55" r="50" fill="url(#tomatoBody)" />
+      <!-- Specular Highlight -->
+      <ellipse cx="36" cy="38" rx="16" ry="9" transform="rotate(-35 36 38)" fill="#ffffff" opacity="0.55" />
+      <ellipse cx="28" cy="52" rx="6" ry="3" transform="rotate(-35 28 52)" fill="#ffffff" opacity="0.4" />
+      <!-- Star Calyx Leaf Crown -->
+      <path d="M50,8 L42,20 L30,18 L38,28 L30,38 L44,34 L50,45 L56,34 L70,38 L62,28 L70,18 L58,20 Z" fill="#15803d" />
+      <path d="M50,8 C48,2 53,-4 55,-6" stroke="#15803d" stroke-width="4" stroke-linecap="round" fill="none" />
+    </g>
+
+    <!-- E. Crunchy Golden-Orange Carrot (Front Right) -->
+    <g transform="translate(285, 195) rotate(26)">
+      <!-- Green Feathery Leaves -->
+      <path d="M35,10 C25,-15 10,-25 10,-25 C10,-25 22,-8 28,8" stroke="#16a34a" stroke-width="4" stroke-linecap="round" fill="none" />
+      <path d="M40,6 C40,-20 42,-30 42,-30 C42,-30 45,-10 42,6" stroke="#22c55e" stroke-width="4.5" stroke-linecap="round" fill="none" />
+      <path d="M45,10 C55,-15 70,-25 70,-25 C70,-25 58,-8 52,8" stroke="#15803d" stroke-width="4" stroke-linecap="round" fill="none" />
+      <!-- Carrot Body -->
+      <path d="M18,12 C14,20 22,35 28,65 C34,95 40,120 40,120 C40,120 46,95 52,65 C58,35 66,20 62,12 C56,4 24,4 18,12 Z" fill="url(#carrotBody)" />
+      <!-- Highlight -->
+      <path d="M26,20 C28,45 34,80 37,105" stroke="#fed7aa" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.6" />
+      <!-- Texture Stripes -->
+      <line x1="28" y1="35" x2="44" y2="35" stroke="#9a3412" stroke-width="2.5" stroke-linecap="round" opacity="0.6" />
+      <line x1="34" y1="55" x2="48" y2="55" stroke="#9a3412" stroke-width="2.5" stroke-linecap="round" opacity="0.6" />
+      <line x1="33" y1="75" x2="45" y2="75" stroke="#9a3412" stroke-width="2.5" stroke-linecap="round" opacity="0.6" />
+    </g>
+
+    <!-- F. Fresh Green Chilli (Center Front Accent) -->
+    <g transform="translate(230, 270) rotate(-15)">
+      <path d="M15,10 C25,25 35,45 42,70 C44,78 40,80 36,75 C25,55 12,38 8,20 C6,12 10,8 15,10 Z" fill="#22c55e" />
+      <path d="M12,12 C10,6 14,2 16,0" stroke="#15803d" stroke-width="3" stroke-linecap="round" fill="none" />
+    </g>
+  </g>
+
+  <!-- 4. Premium Gold & Glass POS Billing Pill at Bottom -->
+  <g transform="translate(66, 368)">
+    <!-- Pill Base Shadow -->
+    <rect width="380" height="90" rx="45" fill="#090d16" opacity="0.94" filter="url(#shadow3D)" />
+    <!-- Gold Border Outline -->
+    <rect x="2" y="2" width="376" height="86" rx="43" fill="none" stroke="url(#goldRim)" stroke-width="3.5" />
+
+    <!-- Rupee / POS Cash Coin Badge -->
+    <g transform="translate(18, 14)">
+      <circle cx="31" cy="31" r="31" fill="url(#goldRim)" />
+      <circle cx="31" cy="31" r="27" fill="#047857" />
+      <text x="31" y="41" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="34" font-weight="900" fill="#fef08a" text-anchor="middle">₹</text>
+    </g>
+
+    <!-- Main App Name in Bold Premium Font -->
+    <text x="235" y="44" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="25" font-weight="900" letter-spacing="2" fill="#ffffff" text-anchor="middle">VEGI BILLING</text>
+    <text x="235" y="68" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="800" letter-spacing="4" fill="#34d399" text-anchor="middle">PRO APP</text>
+  </g>
+</svg>
