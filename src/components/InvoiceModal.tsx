@@ -123,9 +123,34 @@ export default function InvoiceModal({
     }
   };
 
-  // Cross-device mobile download handler using Blob
+  // Cross-device mobile download handler (Native APK Bridge + Web Blob)
   const handleDownloadCapturedImage = () => {
     if (!capturedImage) return;
+
+    // 1. Android APK Native Bridge Hook
+    try {
+      if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
+        (window as any).ReactNativeWebView.postMessage(
+          JSON.stringify({
+            type: 'DOWNLOAD_FILE',
+            dataUrl: capturedImage,
+            filename: `Invoice-${sale.invoiceNumber}.png`,
+            title: `Save Invoice ${sale.invoiceNumber}`,
+          })
+        );
+        if (showAlert) {
+          showAlert(
+            language === 'mr' ? 'बिल फोटो डाऊनलोड झाले!' : 'Bill Image Downloaded!',
+            language === 'mr' ? 'बीजक फोटो तुमच्या फोन किंवा डिव्हाइसवर यशस्वीरित्या सेव्ह झाला.' : 'Invoice image successfully saved to your downloads.'
+          );
+        }
+        return;
+      }
+    } catch (bridgeErr) {
+      console.warn('Native download bridge error, falling back to blob:', bridgeErr);
+    }
+
+    // 2. Standard Web Blob Downloader
     try {
       const blob = dataUrlToBlob(capturedImage);
       const blobUrl = URL.createObjectURL(blob);
@@ -187,19 +212,42 @@ export default function InvoiceModal({
     copyToClipboard();
   };
 
-  // Cross-device mobile share handler: Attaches the ACTUAL IMAGE FILE directly to native share sheet / WhatsApp
+  // Cross-device mobile share handler (Native APK Share Sheet + Web Share API)
   const handleShareCapturedImage = async () => {
     if (!capturedImage) return;
 
+    // 1. Android APK Native Share Sheet Hook
+    try {
+      if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
+        (window as any).ReactNativeWebView.postMessage(
+          JSON.stringify({
+            type: 'SHARE_FILE',
+            dataUrl: capturedImage,
+            filename: `Invoice-${sale.invoiceNumber}.png`,
+            title: `Invoice ${sale.invoiceNumber}`,
+          })
+        );
+        if (showAlert) {
+          showAlert(
+            language === 'mr' ? 'शेअर यशस्वी!' : 'Shared Successfully!',
+            language === 'mr' ? 'बिल इमेज शेअर केली गेली आहे.' : 'Invoice image shared via system share sheet.'
+          );
+        }
+        return;
+      }
+    } catch (bridgeErr) {
+      console.warn('Native share bridge error, falling back to Web Share:', bridgeErr);
+    }
+
+    // 2. Standard Web Share API
     try {
       const blob = dataUrlToBlob(capturedImage);
       const file = new File([blob], `Invoice-${sale.invoiceNumber}.png`, { type: 'image/png' });
 
-      // Native Web Share API with binary File support (WhatsApp, Telegram, Messages attach the PNG)
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           title: `Invoice ${sale.invoiceNumber}`,
-          files: [file], // IMPORTANT: Do NOT include text here to ensure apps attach the IMAGE directly
+          files: [file],
         });
         if (showAlert) {
           showAlert(
@@ -210,11 +258,11 @@ export default function InvoiceModal({
         return;
       }
     } catch (err: any) {
-      if (err.name === 'AbortError') return; // User closed share dialog
+      if (err.name === 'AbortError') return;
       console.warn('Native image file share failed:', err);
     }
 
-    // Fallback if browser doesn't support file sharing: Copy image to clipboard and trigger download
+    // Fallback: Copy image to clipboard and trigger download
     handleCopyImageToClipboard();
     if (showAlert) {
       showAlert(

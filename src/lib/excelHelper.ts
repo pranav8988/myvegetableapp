@@ -1,11 +1,32 @@
 import * as XLSX from 'xlsx';
 
 /**
- * Universal Mobile & Desktop Excel (.xlsx) File Downloader
- * Converts workbook into a binary Blob and triggers an explicit download anchor.
- * Guaranteed to work on Android Chrome, iOS Safari, desktop browsers, and mobile WebViews.
+ * Universal Mobile (APK Native Bridge + Browser) Excel (.xlsx) File Downloader
+ * - If running inside React Native Android APK: Posts Base64 to native bridge for direct device saving.
+ * - If running in standard browser: Triggers standard Blob OpenXML download.
  */
 export const downloadXlsxWorkbook = (wb: XLSX.WorkBook, filename: string): boolean => {
+  const safeFilename = filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`;
+
+  // 1. Android APK Native Bridge Hook
+  try {
+    if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
+      const b64 = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+      (window as any).ReactNativeWebView.postMessage(
+        JSON.stringify({
+          type: 'DOWNLOAD_FILE',
+          dataUrl: `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${b64}`,
+          filename: safeFilename,
+          title: `Save ${safeFilename}`,
+        })
+      );
+      return true;
+    }
+  } catch (bridgeErr) {
+    console.warn('Native WebView bridge error, falling back to browser blob:', bridgeErr);
+  }
+
+  // 2. Standard Browser Blob Download
   try {
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([wbout], {
@@ -15,7 +36,7 @@ export const downloadXlsxWorkbook = (wb: XLSX.WorkBook, filename: string): boole
     const a = document.createElement('a');
     a.style.display = 'none';
     a.href = url;
-    a.download = filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`;
+    a.download = safeFilename;
     document.body.appendChild(a);
     a.click();
     setTimeout(() => {
@@ -26,7 +47,7 @@ export const downloadXlsxWorkbook = (wb: XLSX.WorkBook, filename: string): boole
   } catch (err) {
     console.error('Blob download failed, falling back to XLSX.writeFile:', err);
     try {
-      XLSX.writeFile(wb, filename);
+      XLSX.writeFile(wb, safeFilename);
       return true;
     } catch (fallbackErr) {
       console.error('XLSX.writeFile fallback failed:', fallbackErr);

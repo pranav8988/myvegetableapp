@@ -10,11 +10,76 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as Print from 'expo-print';
 
-// Your local Wi-Fi network IP address for this machine
-const DEFAULT_URL = 'http://10.63.78.181:5173';
+// Production Cloud / GitHub Pages live URL (with offline local IP support)
+const DEFAULT_URL = 'https://pranav8988.github.io/myvegetableapp/';
+
+// Bridge polyfills for Android WebView: Injects native Web Share API and Download hooks
+const INJECTED_BRIDGE_JS = `
+  (function() {
+    // 1. Polyfill navigator.share for native Android share sheet with images
+    window.navigator.canShare = function() { return true; };
+    window.navigator.share = function(data) {
+      return new Promise(function(resolve, reject) {
+        try {
+          if (data && data.files && data.files.length > 0) {
+            var file = data.files[0];
+            var reader = new FileReader();
+            reader.onload = function() {
+              if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                  type: 'SHARE_FILE',
+                  dataUrl: reader.result,
+                  filename: file.name || 'Invoice.png',
+                  title: data.title || 'Invoice Receipt'
+                }));
+              }
+              resolve();
+            };
+            reader.onerror = function(e) { reject(e); };
+            reader.readAsDataURL(file);
+          } else {
+            if (window.ReactNativeWebView) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'SHARE_TEXT',
+                text: data.text || '',
+                title: data.title || 'Invoice'
+              }));
+            }
+            resolve();
+          }
+        } catch (err) {
+          reject(err);
+        }
+      });
+    };
+
+    // 2. Intercept download anchor clicks for native mobile saving
+    document.addEventListener('click', function(e) {
+      var target = e.target.closest('a[download]');
+      if (target && target.href) {
+        var href = target.href;
+        var downloadName = target.getAttribute('download') || 'download';
+        if (href.startsWith('data:') || href.startsWith('blob:')) {
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'DOWNLOAD_FILE',
+              url: href,
+              filename: downloadName
+            }));
+          }
+        }
+      }
+    }, true);
+  })();
+  true;
+`;
 
 export default function App() {
   const webViewRef = useRef(null);
@@ -40,10 +105,66 @@ export default function App() {
     }
   }, [hasError]);
 
+  // Handle messages from Web App (Sharing, Downloads, Printing)
+  const handleMessage = async (event) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+
+      if (data.type === 'SHARE_FILE' || data.type === 'DOWNLOAD_FILE') {
+        const { dataUrl, filename, title } = data;
+        if (!dataUrl) return;
+
+        // Parse base64 content
+        let base64Data = dataUrl;
+        if (dataUrl.includes('base64,')) {
+          base64Data = dataUrl.split('base64,')[1];
+        }
+
+        const safeFilename = filename || `Receipt-${Date.now()}.png`;
+        const fileUri = `${FileSystem.cacheDirectory}${safeFilename}`;
+
+        // Write file to device cache
+        await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
+        // Trigger native Android Share & Save sheet
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: safeFilename.endsWith('.xlsx')
+              ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+              : 'image/png',
+            dialogTitle: title || `Save / Share ${safeFilename}`,
+            UTI: safeFilename.endsWith('.xlsx')
+              ? 'com.microsoft.excel.xlsx'
+              : 'public.png',
+          });
+        } else {
+          Alert.alert('File Saved', `Saved to ${fileUri}`);
+        }
+      } else if (data.type === 'SHARE_TEXT') {
+        if (await Sharing.isAvailableAsync()) {
+          const tempTextFile = `${FileSystem.cacheDirectory}invoice_summary.txt`;
+          await FileSystem.writeAsStringAsync(tempTextFile, data.text || '');
+          await Sharing.shareAsync(tempTextFile, {
+            mimeType: 'text/plain',
+            dialogTitle: data.title || 'Share Invoice',
+          });
+        }
+      } else if (data.type === 'PRINT') {
+        if (data.html) {
+          await Print.printAsync({ html: data.html });
+        }
+      }
+    } catch (err) {
+      console.warn('Native message handling error:', err);
+    }
+  };
+
   const handleConnect = () => {
     let formatted = inputUrl.trim();
     if (!formatted.startsWith('http://') && !formatted.startsWith('https://')) {
-      formatted = 'http://' + formatted;
+      formatted = 'https://' + formatted;
     }
     setHasError(false);
     setIsLoading(true);
@@ -67,7 +188,10 @@ export default function App() {
             scalesPageToFit={true}
             allowsInlineMediaPlayback={true}
             allowFileAccess={true}
+            allowFileAccessFromFileURLs={true}
             allowUniversalAccessFromFileURLs={true}
+            injectedJavaScript={INJECTED_BRIDGE_JS}
+            onMessage={handleMessage}
             originWhitelist={['*']}
             mixedContentMode="always"
             onLoadStart={() => setIsLoading(true)}
@@ -102,16 +226,16 @@ export default function App() {
 
             <View style={styles.warningBox}>
               <Text style={styles.warningText}>
-                {errorMessage || 'Cannot connect to localhost on mobile device.'}
+                {errorMessage || 'Cannot connect to server.'}
               </Text>
             </View>
 
-            <Text style={styles.inputLabel}>Enter Server IP or URL:</Text>
+            <Text style={styles.inputLabel}>Server URL / IP Address:</Text>
             <TextInput
               style={styles.input}
               value={inputUrl}
               onChangeText={setInputUrl}
-              placeholder="e.g. http://10.63.78.181:5173"
+              placeholder="e.g. https://pranav8988.github.io/myvegetableapp/"
               placeholderTextColor="#94a3b8"
               autoCapitalize="none"
               autoCorrect={false}
@@ -129,11 +253,11 @@ export default function App() {
                 setIsLoading(true);
               }}
             >
-              <Text style={styles.retryButtonText}>Retry Current URL</Text>
+              <Text style={styles.retryButtonText}>Retry Default URL</Text>
             </TouchableOpacity>
 
             <Text style={styles.helpText}>
-              💡 Make sure your computer and phone are on the same Wi-Fi network and your development server is running.
+              💡 Tip: The app loads your live cloud store on GitHub Pages. You can also connect to a local development IP if testing locally.
             </Text>
           </View>
         </View>
