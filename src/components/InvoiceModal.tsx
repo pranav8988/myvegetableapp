@@ -1,8 +1,9 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Printer, Share2, Check, Copy, AlertCircle, Camera, Download } from 'lucide-react';
+import { X, Printer, Share2, Check, Copy, AlertCircle, Camera, Download, Image as ImageIcon, Sparkles } from 'lucide-react';
 import { Sale } from '../types';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useLanguage } from '../lib/translations';
+import html2canvas from 'html2canvas';
 import { toPng } from 'html-to-image';
 
 interface InvoiceModalProps {
@@ -13,6 +14,7 @@ interface InvoiceModalProps {
     address: string;
     phone: string;
     gstin?: string;
+    logo?: string;
   };
 }
 
@@ -40,7 +42,10 @@ export default function InvoiceModal({
   }
 }: InvoiceModalProps) {
   const { t, language } = useLanguage();
+  const invoiceRef = useRef<HTMLDivElement>(null);
+
   const [copied, setCopied] = useState(false);
+  const [imageCopied, setImageCopied] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [captureError, setCaptureError] = useState<string | null>(null);
@@ -55,8 +60,9 @@ export default function InvoiceModal({
     window.print();
   };
 
+  // Robust, multi-engine screenshot capture
   const handleTakeScreenshot = async () => {
-    const element = document.getElementById('print-area');
+    const element = invoiceRef.current;
     if (!element) return;
 
     setCapturing(true);
@@ -64,25 +70,53 @@ export default function InvoiceModal({
     setCapturedImage(null);
 
     try {
-      // Small delay to let rendering settle
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      // Small pause to allow layout & font rendering to settle
+      await new Promise((resolve) => setTimeout(resolve, 120));
 
-      const dataUrl = await toPng(element, {
-        quality: 0.98,
-        pixelRatio: 2,
-        backgroundColor: '#ffffff',
-        cacheBust: true,
-      });
+      let dataUrl: string | null = null;
 
-      setCapturedImage(dataUrl);
-      setCapturing(false);
+      // Primary engine: html2canvas with optimal options (ignores cross-origin font bugs)
+      try {
+        const canvas = await html2canvas(element, {
+          scale: 2, // High resolution crisp image
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          scrollX: 0,
+          scrollY: 0,
+          windowWidth: element.scrollWidth || 600,
+          windowHeight: element.scrollHeight || 800,
+        });
+        dataUrl = canvas.toDataURL('image/png', 1.0);
+      } catch (h2cError) {
+        console.warn('html2canvas capture failed, trying toPng fallback:', h2cError);
+      }
+
+      // Secondary engine fallback: html-to-image toPng (with skipFonts to bypass CORS font errors)
+      if (!dataUrl) {
+        dataUrl = await toPng(element, {
+          quality: 0.98,
+          pixelRatio: 2,
+          backgroundColor: '#ffffff',
+          skipFonts: true,
+          cacheBust: false,
+        });
+      }
+
+      if (dataUrl) {
+        setCapturedImage(dataUrl);
+      } else {
+        throw new Error('Screenshot engine produced empty image');
+      }
     } catch (err) {
       console.error('Screenshot capture failed:', err);
       setCaptureError(
         language === 'mr'
-          ? 'स्क्रीनशॉट घेण्यात अडचण आली. कृपया पुन्हा प्रयत्न करा.'
-          : 'Failed to take screenshot. Please try again.'
+          ? 'स्क्रीनशॉट घेण्यात अडचण आली. कृपया पुन्हा प्रयत्न करा किंवा प्रिंट/PDF वापरा.'
+          : 'Failed to take screenshot. Please try again or use Print / PDF.'
       );
+    } finally {
       setCapturing(false);
     }
   };
@@ -106,6 +140,26 @@ export default function InvoiceModal({
       a.download = `Invoice-${sale.invoiceNumber}.png`;
       a.click();
     }
+  };
+
+  // Direct clipboard copy of the PNG image
+  const handleCopyImageToClipboard = async () => {
+    if (!capturedImage) return;
+    try {
+      const blob = dataUrlToBlob(capturedImage);
+      if (navigator.clipboard && window.ClipboardItem) {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': blob })
+        ]);
+        setImageCopied(true);
+        setTimeout(() => setImageCopied(false), 2500);
+        return;
+      }
+    } catch (err) {
+      console.warn('Clipboard image write failed:', err);
+    }
+    // Fallback: copy text receipt if image copy is restricted
+    copyToClipboard();
   };
 
   // Cross-device mobile share handler (Web Share API with fallback)
@@ -212,11 +266,26 @@ export default function InvoiceModal({
 
           {/* Invoice container */}
           <div className="flex-1 p-4 sm:p-6 bg-slate-100/50">
-            {/* Printable Area with generous internal padding */}
-            <div id="print-area" className="bg-white text-slate-900 font-sans p-5 sm:p-7 rounded-2xl border border-slate-200 shadow-xs max-w-md mx-auto">
+            {/* Printable Area with generous internal padding and direct React ref */}
+            <div 
+              ref={invoiceRef}
+              id="invoice-print-area" 
+              className="bg-white text-slate-900 font-sans p-5 sm:p-7 rounded-2xl border border-slate-200 shadow-xs max-w-md mx-auto printable-invoice"
+            >
               {/* Receipt Header Box */}
               <div className="text-center p-4 rounded-xl bg-slate-50/90 border border-slate-200 mb-4">
-                <span className="inline-flex text-3xl mb-1">🥬</span>
+                {shopDetails.logo && (shopDetails.logo.startsWith('data:image') || shopDetails.logo.startsWith('http')) ? (
+                  <div className="flex justify-center mb-2.5">
+                    <img
+                      src={shopDetails.logo}
+                      alt={shopDetails.name}
+                      className="w-16 h-16 sm:w-20 sm:h-20 object-contain rounded-xl shadow-xs bg-white p-1 border border-slate-200"
+                      crossOrigin="anonymous"
+                    />
+                  </div>
+                ) : (
+                  <span className="inline-flex text-3xl mb-1 select-none">{shopDetails.logo || '🥬'}</span>
+                )}
                 <h1 className="font-display font-bold text-xl text-slate-900 tracking-tight">{shopDetails.name}</h1>
                 <p className="text-xs text-slate-600 mt-1">{shopDetails.address}</p>
                 <p className="text-xs text-slate-600 font-medium mt-0.5">Mob: {shopDetails.phone}</p>
@@ -453,18 +522,19 @@ export default function InvoiceModal({
               📸
             </div>
             <div>
-              <h4 className="font-display font-bold text-slate-800 text-base">
-                {language === 'mr' ? 'स्क्रीनशॉट तयार आहे!' : 'Screenshot Ready!'}
+              <h4 className="font-display font-bold text-slate-800 text-base flex items-center justify-center gap-1.5">
+                <span>{language === 'mr' ? 'स्क्रीनशॉट तयार आहे!' : 'Screenshot Ready!'}</span>
+                <Sparkles className="w-4 h-4 text-amber-500" />
               </h4>
               <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
                 {language === 'mr' 
-                  ? 'इथून डाउनलोड करा किंवा थेट शेअर करा.'
-                  : 'Download or share the bill image directly across devices.'}
+                  ? 'इथून डाउनलोड करा, इमेज कॉपी करा किंवा थेट शेअर करा.'
+                  : 'Download, copy image to clipboard, or share directly.'}
               </p>
             </div>
             
             {/* Captured preview img */}
-            <div className="border border-slate-200 rounded-xl p-2 bg-slate-50 max-h-64 overflow-y-auto w-full flex justify-center">
+            <div className="border border-slate-200 rounded-xl p-2 bg-slate-50 max-h-64 overflow-y-auto w-full flex justify-center shadow-inner">
               <img 
                 src={capturedImage} 
                 alt="Captured Invoice" 
@@ -473,23 +543,37 @@ export default function InvoiceModal({
               />
             </div>
 
-            <div className="flex gap-2 w-full mt-2">
+            {/* Action buttons */}
+            <div className="grid grid-cols-3 gap-2 w-full mt-1">
               <button
                 onClick={handleDownloadCapturedImage}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3 px-3 rounded-xl transition text-center flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] py-2.5 px-2 rounded-xl transition text-center flex flex-col items-center justify-center gap-1 cursor-pointer shadow-xs"
                 title={language === 'mr' ? 'बिल डाउनलोड करा' : 'Download Bill Image'}
               >
                 <Download className="w-4 h-4" />
-                <span>{language === 'mr' ? 'डाउनलोड करा' : 'Download'}</span>
+                <span>{language === 'mr' ? 'डाउनलोड' : 'Download'}</span>
               </button>
               
               <button
+                onClick={handleCopyImageToClipboard}
+                className={`border font-bold text-[11px] py-2.5 px-2 rounded-xl transition text-center flex flex-col items-center justify-center gap-1 cursor-pointer shadow-xs ${
+                  imageCopied
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                }`}
+                title={language === 'mr' ? 'इमेज क्लिपबोर्डवर कॉपी करा' : 'Copy Image to Clipboard'}
+              >
+                {imageCopied ? <Check className="w-4 h-4 text-emerald-600" /> : <ImageIcon className="w-4 h-4" />}
+                <span>{imageCopied ? (language === 'mr' ? 'कॉपी झाले!' : 'Copied!') : (language === 'mr' ? 'कॉपी इमेज' : 'Copy Image')}</span>
+              </button>
+
+              <button
                 onClick={handleShareCapturedImage}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs py-3 px-3 rounded-xl transition text-center flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] py-2.5 px-2 rounded-xl transition text-center flex flex-col items-center justify-center gap-1 cursor-pointer shadow-xs"
                 title={language === 'mr' ? 'बिल शेअर करा' : 'Share Bill Image'}
               >
                 <Share2 className="w-4 h-4" />
-                <span>{language === 'mr' ? 'शेअर करा' : 'Share'}</span>
+                <span>{language === 'mr' ? 'शेअर' : 'Share'}</span>
               </button>
             </div>
           </motion.div>

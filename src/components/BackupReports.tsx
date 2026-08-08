@@ -10,7 +10,7 @@ interface BackupReportsProps {
   onBackupFull: () => void;
   onRestoreFull: (e: ChangeEvent<HTMLInputElement>) => void;
   vegetables: Vegetable[];
-  shopDetails: { name: string; address?: string; phone?: string; gstin?: string };
+  shopDetails: { name: string; address?: string; phone?: string; gstin?: string; logo?: string };
   onRestoreDirect: (parsed: any) => boolean;
 }
 

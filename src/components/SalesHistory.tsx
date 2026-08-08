@@ -16,6 +16,7 @@ interface SalesHistoryProps {
     address: string;
     phone: string;
     gstin?: string;
+    logo?: string;
   };
 }
 
@@ -580,15 +581,27 @@ export default function SalesHistory({
       {/* =================================================== */}
       {/* PRINT-ONLY SALES REPORT SECTION (Visible on print) */}
       {/* =================================================== */}
-      <div id="print-area" className="hidden print:block p-8 bg-white text-slate-800" style={{ fontFamily: 'system-ui, sans-serif', color: '#1e293b' }}>
+      <div id="sales-history-print-area" className="hidden print:block p-8 bg-white text-slate-800" style={{ fontFamily: 'system-ui, sans-serif', color: '#1e293b' }}>
         {/* Print Header */}
         <div className="text-center border-b-2 border-slate-200 pb-6 mb-6">
           <div className="flex justify-between items-start mb-4 text-left">
-            <div>
-              <h1 className="text-2xl font-black tracking-tight text-slate-900">{shopDetails.name}</h1>
-              <p className="text-xs text-slate-500 mt-1">{shopDetails.address}</p>
-              <p className="text-xs text-slate-500">📞 {shopDetails.phone}</p>
-              {shopDetails.gstin && <p className="text-xs text-slate-500 font-mono">GSTIN: {shopDetails.gstin}</p>}
+            <div className="flex items-center gap-3">
+              {shopDetails.logo && (shopDetails.logo.startsWith('data:image') || shopDetails.logo.startsWith('http')) ? (
+                <img
+                  src={shopDetails.logo}
+                  alt={shopDetails.name}
+                  className="w-14 h-14 object-contain rounded-xl border border-slate-200 p-0.5"
+                  crossOrigin="anonymous"
+                />
+              ) : (
+                <span className="text-3xl select-none">{shopDetails.logo || '🥬'}</span>
+              )}
+              <div>
+                <h1 className="text-2xl font-black tracking-tight text-slate-900">{shopDetails.name}</h1>
+                <p className="text-xs text-slate-500 mt-1">{shopDetails.address}</p>
+                <p className="text-xs text-slate-500">📞 {shopDetails.phone}</p>
+                {shopDetails.gstin && <p className="text-xs text-slate-500 font-mono">GSTIN: {shopDetails.gstin}</p>}
+              </div>
             </div>
             <div className="text-right">
               <span className="bg-slate-100 text-slate-900 text-[10px] font-bold px-3 py-1.5 rounded-md uppercase tracking-wider border border-slate-200">

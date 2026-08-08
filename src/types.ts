@@ -45,3 +45,12 @@ export interface VegetableStats {
   pendingCount: number;
   topSelling: { name: string; quantity: number } | null;
 }
+
+export interface ShopDetails {
+  name: string;
+  address: string;
+  phone: string;
+  gstin?: string;
+  logo?: string; // Image DataURL (Base64), image URL, or custom emoji
+}
+

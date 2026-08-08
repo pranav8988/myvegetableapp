@@ -196,7 +196,7 @@ interface VegetablesManagerProps {
   onDelete: (id: string) => void;
   onResetToDefault: () => void;
   onBulkUpdate: (updatedList: Vegetable[]) => void;
-  shopDetails: { name: string; address?: string; phone?: string; gstin?: string };
+  shopDetails: { name: string; address?: string; phone?: string; gstin?: string; logo?: string };
   showConfirm: (title: string, message: string, onConfirm: () => void) => void;
 }
 

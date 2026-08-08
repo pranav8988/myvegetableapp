@@ -95,6 +95,7 @@ export default function App() {
   const [configAddress, setConfigAddress] = useState(shopDetails.address);
   const [configPhone, setConfigPhone] = useState(shopDetails.phone);
   const [configGstin, setConfigGstin] = useState(shopDetails.gstin || '');
+  const [configLogo, setConfigLogo] = useState(shopDetails.logo || '');
 
   // Live Clock state
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -274,14 +275,54 @@ export default function App() {
     );
   };
 
-  // --- 5. Shop Config Save ---
+  // --- 5. Shop Config & Logo Handlers ---
+  const handleLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showAlert('Invalid Image', 'Please select a valid image file (PNG, JPG, WebP, etc.).');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Auto compress to max 280x280 for fast storage & crisp rendering
+        const maxDim = 280;
+        let width = img.width;
+        let height = img.height;
+        if (width > height && width > maxDim) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else if (height > maxDim) {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL('image/png', 0.95);
+          setConfigLogo(compressedDataUrl);
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSaveConfig = (e: FormEvent) => {
     e.preventDefault();
     setShopDetails({
       name: configName.trim() || 'Fresh Farms Vegetable Mart',
       address: configAddress.trim() || 'Sector 15, City - 400012',
       phone: configPhone.trim() || '+91 98765 43210',
-      gstin: configGstin.trim() || undefined
+      gstin: configGstin.trim() || undefined,
+      logo: configLogo.trim() || undefined,
     });
     setIsConfigOpen(false);
   };
@@ -304,13 +345,15 @@ export default function App() {
               name: 'Fresh Farms Vegetable Mart',
               address: 'Shop No. 4, Green Market, Sector 15, City - 400012',
               phone: '+91 98765 43210',
-              gstin: '27AAAAA1111A1Z1'
+              gstin: '27AAAAA1111A1Z1',
+              logo: undefined
             };
             setShopDetails(defaultShop);
             setConfigName(defaultShop.name);
             setConfigAddress(defaultShop.address);
             setConfigPhone(defaultShop.phone);
             setConfigGstin(defaultShop.gstin);
+            setConfigLogo('');
 
             // 2. Clear Local Storage
             localStorage.removeItem('vegetable_catalog');
@@ -362,6 +405,7 @@ export default function App() {
           setConfigAddress(parsed.shopDetails.address || '');
           setConfigPhone(parsed.shopDetails.phone || '');
           setConfigGstin(parsed.shopDetails.gstin || '');
+          setConfigLogo(parsed.shopDetails.logo || '');
           showAlert(
             language === 'mr' ? 'यशस्वी झाले' : 'Success',
             t('restore_success') || 'Data restored successfully!'
@@ -405,7 +449,15 @@ export default function App() {
         <div className="flex flex-col overflow-y-auto">
           {/* Logo & Brand Header */}
           <div className="p-6 border-b border-slate-50 flex items-center gap-3">
-            <span className="text-3.5xl select-none leading-none">🥬</span>
+            {shopDetails.logo && (shopDetails.logo.startsWith('data:image') || shopDetails.logo.startsWith('http')) ? (
+              <img
+                src={shopDetails.logo}
+                alt="Shop Logo"
+                className="w-10 h-10 rounded-xl object-contain shadow-xs border border-slate-200 bg-white shrink-0 p-0.5"
+              />
+            ) : (
+              <span className="text-3.5xl select-none leading-none shrink-0">{shopDetails.logo || '🥬'}</span>
+            )}
             <div className="overflow-hidden">
               <h1 className="font-display font-extrabold text-slate-800 text-sm tracking-tight truncate">
                 {shopDetails.name === 'Fresh Farms Vegetable Mart' ? t('app_title') : shopDetails.name}
@@ -525,18 +577,27 @@ export default function App() {
 
       {/* MOBILE HEADER SECTION */}
       <header className="md:hidden bg-white border-b border-slate-100 sticky top-0 z-30 shadow-xs px-4 py-3 flex justify-between items-center print:hidden">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-600 transition cursor-pointer"
           >
             {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
+          {shopDetails.logo && (shopDetails.logo.startsWith('data:image') || shopDetails.logo.startsWith('http')) ? (
+            <img
+              src={shopDetails.logo}
+              alt="Shop Logo"
+              className="w-7 h-7 rounded-lg object-contain shadow-xs border border-slate-200 bg-white shrink-0 p-0.5"
+            />
+          ) : (
+            <span className="text-xl select-none leading-none shrink-0">{shopDetails.logo || '🥬'}</span>
+          )}
           <div>
-            <h1 className="font-display font-extrabold text-slate-800 text-xs tracking-tight">
+            <h1 className="font-display font-extrabold text-slate-800 text-xs tracking-tight truncate max-w-[170px]">
               {shopDetails.name === 'Fresh Farms Vegetable Mart' ? t('app_title') : shopDetails.name}
             </h1>
-            <p className="text-[9px] text-slate-400 font-medium truncate max-w-[140px]">
+            <p className="text-[9px] text-slate-400 font-medium truncate max-w-[170px]">
               {shopDetails.address}
             </p>
           </div>
@@ -858,6 +919,76 @@ export default function App() {
             
             <form onSubmit={handleSaveConfig} className="flex flex-col gap-4">
               
+              {/* Logo & Profile Picture Upload / Avatar Selector */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col gap-2.5">
+                <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                  {language === 'mr' ? 'दुकान लोगो / प्रोफाईल फोटो' : 'Shop Logo / Profile Picture'}
+                </label>
+                
+                <div className="flex items-center gap-3.5">
+                  {/* Live Preview */}
+                  <div className="w-14 h-14 rounded-xl border border-slate-200 bg-white shadow-xs flex items-center justify-center overflow-hidden shrink-0">
+                    {configLogo && (configLogo.startsWith('data:image') || configLogo.startsWith('http')) ? (
+                      <img src={configLogo} alt="Preview" className="w-full h-full object-contain p-1" />
+                    ) : (
+                      <span className="text-3xl select-none">{configLogo || '🥬'}</span>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <label className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] px-3 py-1.5 rounded-lg transition cursor-pointer inline-flex items-center gap-1 shadow-xs">
+                        <span>{language === 'mr' ? 'फोटो निवडा (PNG/JPG)' : 'Upload Logo'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoUpload}
+                          className="hidden"
+                        />
+                      </label>
+
+                      {configLogo && (
+                        <button
+                          type="button"
+                          onClick={() => setConfigLogo('')}
+                          className="text-[10px] font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
+                        >
+                          {language === 'mr' ? 'काढून टाका' : 'Remove'}
+                        </button>
+                      )}
+                    </div>
+
+                    <p className="text-[9px] text-slate-400">
+                      {language === 'mr' 
+                        ? 'हा लोगो बिलावर, स्क्रीनशॉटवर आणि अहवालावर दिसेल.' 
+                        : 'Appears on customer bills, generated screenshots & reports.'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Quick Preset Avatars */}
+                <div>
+                  <p className="text-[9px] text-slate-400 font-semibold mb-1">
+                    {language === 'mr' ? 'किंवा आयकॉन निवडा:' : 'Or pick standard icon:'}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['🥬', '🍅', '🥦', '🏪', '🛒', '🥕', '🌽', '🌶️', '👨‍🌾', '🌿'].map((icon) => (
+                      <button
+                        key={`preset-logo-${icon}`}
+                        type="button"
+                        onClick={() => setConfigLogo(icon)}
+                        className={`w-7 h-7 rounded-lg border text-sm flex items-center justify-center transition cursor-pointer ${
+                          configLogo === icon ? 'bg-emerald-100 border-emerald-500 scale-110 shadow-xs' : 'bg-white border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {icon}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               {/* Shop Name */}
               <div>
                 <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Shop Name</label>

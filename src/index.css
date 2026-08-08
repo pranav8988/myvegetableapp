@@ -55,12 +55,21 @@ body {
   /* Make sure printable area and its contents are visible */
   #print-area,
   #print-area *,
+  #sales-history-print-area,
+  #sales-history-print-area *,
+  #invoice-print-area,
+  #invoice-print-area *,
+  .printable-invoice,
+  .printable-invoice *,
   .print\:block,
   .print\:block * {
     visibility: visible !important;
   }
 
-  #print-area {
+  #print-area,
+  #sales-history-print-area,
+  #invoice-print-area,
+  .printable-invoice {
     position: absolute !important;
     left: 50% !important;
     top: 10px !important;
@@ -78,29 +87,44 @@ body {
     page-break-inside: avoid !important;
   }
 
-  #print-area * {
+  #print-area *,
+  #sales-history-print-area *,
+  #invoice-print-area *,
+  .printable-invoice * {
     color: #0f172a !important;
     print-color-adjust: exact !important;
     -webkit-print-color-adjust: exact !important;
     box-sizing: border-box !important;
   }
 
-  #print-area h1 {
+  #print-area h1,
+  #sales-history-print-area h1,
+  #invoice-print-area h1,
+  .printable-invoice h1 {
     font-size: 20px !important;
     font-weight: 700 !important;
   }
 
-  #print-area table {
+  #print-area table,
+  #sales-history-print-area table,
+  #invoice-print-area table,
+  .printable-invoice table {
     width: 100% !important;
     border-collapse: collapse !important;
   }
 
-  #print-area th {
+  #print-area th,
+  #sales-history-print-area th,
+  #invoice-print-area th,
+  .printable-invoice th {
     border-bottom: 1px solid #cbd5e1 !important;
     padding: 8px 10px !important;
   }
 
-  #print-area td {
+  #print-area td,
+  #sales-history-print-area td,
+  #invoice-print-area td,
+  .printable-invoice td {
     padding: 8px 10px !important;
   }
 
@@ -117,3 +141,16 @@ body {
     visibility: hidden !important;
   }
 }
+
+/* Mobile Safe Area & Touch Enhancements */
+.safe-bottom {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+@supports (-webkit-touch-callout: none) {
+  /* iOS smooth scrolling and tap highlight adjustments */
+  body {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
