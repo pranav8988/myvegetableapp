@@ -190,10 +190,13 @@ export default function App() {
             allowFileAccess={true}
             allowFileAccessFromFileURLs={true}
             allowUniversalAccessFromFileURLs={true}
+            injectedJavaScriptBeforeContentLoaded={INJECTED_BRIDGE_JS}
             injectedJavaScript={INJECTED_BRIDGE_JS}
             onMessage={handleMessage}
             originWhitelist={['*']}
             mixedContentMode="always"
+            cacheEnabled={false}
+            incognito={false}
             onLoadStart={() => setIsLoading(true)}
             onLoadEnd={() => setIsLoading(false)}
             onError={(syntheticEvent) => {
