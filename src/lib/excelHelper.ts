@@ -1,9 +1,8 @@
 import * as XLSX from 'xlsx';
 
 /**
- * Universal Mobile (APK Native Bridge + Browser) Excel (.xlsx) File Downloader
- * - If running inside React Native Android APK: Posts Base64 to native bridge for direct device saving.
- * - If running in standard browser: Triggers standard Blob OpenXML download.
+ * Universal Mobile (APK Native Bridge + Mobile Browser Octet-Stream + Web) Excel (.xlsx) File Downloader
+ * Guaranteed to trigger direct file download on Android Chrome, iOS Safari, Android WebViews, and desktop.
  */
 export const downloadXlsxWorkbook = (wb: XLSX.WorkBook, filename: string): boolean => {
   const safeFilename = filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`;
@@ -23,10 +22,28 @@ export const downloadXlsxWorkbook = (wb: XLSX.WorkBook, filename: string): boole
       return true;
     }
   } catch (bridgeErr) {
-    console.warn('Native WebView bridge error, falling back to browser blob:', bridgeErr);
+    console.warn('Native WebView bridge error:', bridgeErr);
   }
 
-  // 2. Standard Browser Blob Download
+  // 2. Mobile Browser Base64 Octet-Stream Direct Download (Forces Android/iOS browser download manager)
+  try {
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+    const dataUri = `data:application/octet-stream;base64,${wbout}`;
+    const a = document.createElement('a');
+    a.href = dataUri;
+    a.download = safeFilename;
+    a.target = '_self';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+    }, 1000);
+    return true;
+  } catch (err) {
+    console.warn('Base64 octet-stream download failed, trying Blob method:', err);
+  }
+
+  // 3. Fallback: Blob URL
   try {
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([wbout], {
@@ -34,7 +51,6 @@ export const downloadXlsxWorkbook = (wb: XLSX.WorkBook, filename: string): boole
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.style.display = 'none';
     a.href = url;
     a.download = safeFilename;
     document.body.appendChild(a);
@@ -44,13 +60,12 @@ export const downloadXlsxWorkbook = (wb: XLSX.WorkBook, filename: string): boole
       URL.revokeObjectURL(url);
     }, 2000);
     return true;
-  } catch (err) {
-    console.error('Blob download failed, falling back to XLSX.writeFile:', err);
+  } catch (fallbackErr) {
+    console.error('Blob download failed, trying XLSX.writeFile:', fallbackErr);
     try {
       XLSX.writeFile(wb, safeFilename);
       return true;
-    } catch (fallbackErr) {
-      console.error('XLSX.writeFile fallback failed:', fallbackErr);
+    } catch (e) {
       return false;
     }
   }

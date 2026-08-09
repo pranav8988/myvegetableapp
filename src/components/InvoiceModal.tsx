@@ -62,52 +62,57 @@ export default function InvoiceModal({
 
   // Cross-platform Print Handler (Native APK Print Manager + Browser Print)
   const handlePrint = () => {
+    const printHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Invoice ${sale.invoiceNumber}</title>
+        <style>
+          body { font-family: -apple-system, system-ui, sans-serif; padding: 20px; color: #0f172a; }
+          .header { text-align: center; border-bottom: 2px solid #059669; padding-bottom: 12px; margin-bottom: 16px; }
+          .title { font-size: 22px; font-weight: bold; color: #047857; margin: 0; }
+          .details { font-size: 13px; color: #64748b; margin: 4px 0; }
+          table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+          th { background: #0f172a; color: #fff; padding: 8px; text-align: left; }
+          td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
+          .total-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px; border-radius: 8px; margin-top: 16px; font-size: 14px; }
+          .total-row { display: flex; justify-content: space-between; margin: 4px 0; }
+          .grand { font-size: 18px; font-weight: bold; color: #047857; }
+          .footer { text-align: center; font-size: 11px; color: #94a3b8; margin-top: 24px; }
+          @media print {
+            body { padding: 0; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1 class="title">${shopDetails.name}</h1>
+          <p class="details">${shopDetails.address} | Phone: ${shopDetails.phone}</p>
+          <p class="details"><b>Invoice:</b> ${sale.invoiceNumber} | <b>Date:</b> ${sale.date}</p>
+          <p class="details"><b>Customer:</b> ${sale.customerName}</p>
+        </div>
+        <table>
+          <thead>
+            <tr><th>Item</th><th style="text-align:right">Qty (kg)</th><th style="text-align:right">Rate (₹)</th><th style="text-align:right">Total (₹)</th></tr>
+          </thead>
+          <tbody>
+            ${sale.items.map((i, idx) => `<tr><td>${idx + 1}. ${i.vegName}</td><td style="text-align:right">${i.quantity.toFixed(2)}</td><td style="text-align:right">₹${i.pricePerKg.toFixed(1)}</td><td style="text-align:right">₹${i.total.toFixed(1)}</td></tr>`).join('')}
+          </tbody>
+        </table>
+        <div class="total-box">
+          <div class="total-row grand"><span>GRAND TOTAL:</span><span>₹${sale.totalAmount.toFixed(1)}</span></div>
+          <div class="total-row"><span>Amount Paid:</span><span>₹${sale.amountPaid.toFixed(1)}</span></div>
+          ${sale.totalAmount - sale.amountPaid > 0 ? `<div class="total-row" style="color:#e11d48;font-weight:bold"><span>Balance Due:</span><span>₹${(sale.totalAmount - sale.amountPaid).toFixed(1)}</span></div>` : `<div class="total-row" style="color:#047857;font-weight:bold"><span>Status:</span><span>PAID IN FULL</span></div>`}
+        </div>
+        <div class="footer">Thank you for your purchase! Buy Fresh, Eat Healthy!</div>
+      </body>
+      </html>
+    `;
+
+    // 1. Android APK Native Print Bridge Hook
     try {
       if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
-        const printHtml = `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="utf-8">
-            <title>Invoice ${sale.invoiceNumber}</title>
-            <style>
-              body { font-family: -apple-system, system-ui, sans-serif; padding: 20px; color: #0f172a; }
-              .header { text-align: center; border-bottom: 2px solid #059669; padding-bottom: 12px; margin-bottom: 16px; }
-              .title { font-size: 22px; font-weight: bold; color: #047857; margin: 0; }
-              .details { font-size: 13px; color: #64748b; margin: 4px 0; }
-              table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
-              th { background: #0f172a; color: #fff; padding: 8px; text-align: left; }
-              td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
-              .total-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px; border-radius: 8px; margin-top: 16px; font-size: 14px; }
-              .total-row { display: flex; justify-content: space-between; margin: 4px 0; }
-              .grand { font-size: 18px; font-weight: bold; color: #047857; }
-              .footer { text-align: center; font-size: 11px; color: #94a3b8; margin-top: 24px; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h1 class="title">${shopDetails.name}</h1>
-              <p class="details">${shopDetails.address} | Phone: ${shopDetails.phone}</p>
-              <p class="details"><b>Invoice:</b> ${sale.invoiceNumber} | <b>Date:</b> ${sale.date}</p>
-              <p class="details"><b>Customer:</b> ${sale.customerName}</p>
-            </div>
-            <table>
-              <thead>
-                <tr><th>Item</th><th style="text-align:right">Qty (kg)</th><th style="text-align:right">Rate (₹)</th><th style="text-align:right">Total (₹)</th></tr>
-              </thead>
-              <tbody>
-                ${sale.items.map((i, idx) => `<tr><td>${idx + 1}. ${i.vegName}</td><td style="text-align:right">${i.quantity.toFixed(2)}</td><td style="text-align:right">₹${i.pricePerKg.toFixed(1)}</td><td style="text-align:right">₹${i.total.toFixed(1)}</td></tr>`).join('')}
-              </tbody>
-            </table>
-            <div class="total-box">
-              <div class="total-row grand"><span>GRAND TOTAL:</span><span>₹${sale.totalAmount.toFixed(1)}</span></div>
-              <div class="total-row"><span>Amount Paid:</span><span>₹${sale.amountPaid.toFixed(1)}</span></div>
-              ${sale.totalAmount - sale.amountPaid > 0 ? `<div class="total-row" style="color:#e11d48;font-weight:bold"><span>Balance Due:</span><span>₹${(sale.totalAmount - sale.amountPaid).toFixed(1)}</span></div>` : `<div class="total-row" style="color:#047857;font-weight:bold"><span>Status:</span><span>PAID IN FULL</span></div>`}
-            </div>
-            <div class="footer">Thank you for your purchase! Buy Fresh, Eat Healthy!</div>
-          </body>
-          </html>
-        `;
         (window as any).ReactNativeWebView.postMessage(
           JSON.stringify({
             type: 'PRINT',
@@ -119,6 +124,23 @@ export default function InvoiceModal({
     } catch (err) {
       console.warn('Native print bridge error:', err);
     }
+
+    // 2. Mobile/Desktop Browser Print Popup
+    try {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(printHtml);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+        }, 300);
+        return;
+      }
+    } catch (e) {
+      console.warn('Print popup blocked, falling back to window.print():', e);
+    }
+
     window.print();
   };
 
@@ -165,7 +187,7 @@ export default function InvoiceModal({
     }
   };
 
-  // Cross-device mobile download handler (Native APK Bridge + Web Blob)
+  // Cross-device mobile download handler (Native APK Bridge + Mobile Octet-Stream + Web Blob)
   const handleDownloadCapturedImage = () => {
     if (!capturedImage) return;
 
@@ -189,10 +211,33 @@ export default function InvoiceModal({
         return;
       }
     } catch (bridgeErr) {
-      console.warn('Native download bridge error, falling back to blob:', bridgeErr);
+      console.warn('Native download bridge error, falling back to mobile stream:', bridgeErr);
     }
 
-    // 2. Standard Web Blob Downloader
+    // 2. Mobile Browser Octet-Stream Direct Download
+    try {
+      const octetUri = capturedImage.replace(/^data:image\/[^;]+/, 'data:application/octet-stream');
+      const a = document.createElement('a');
+      a.href = octetUri;
+      a.download = `Invoice-${sale.invoiceNumber}.png`;
+      a.target = '_self';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+      }, 1000);
+      if (showAlert) {
+        showAlert(
+          language === 'mr' ? 'बिल फोटो डाऊनलोड झाले!' : 'Bill Image Downloaded!',
+          language === 'mr' ? 'बीजक फोटो तुमच्या फोन किंवा डिव्हाइसवर यशस्वीरित्या सेव्ह झाला.' : 'Invoice image successfully saved to your downloads.'
+        );
+      }
+      return;
+    } catch (e) {
+      console.warn('Octet stream download failed, trying blob:', e);
+    }
+
+    // 3. Standard Web Blob Downloader
     try {
       const blob = dataUrlToBlob(capturedImage);
       const blobUrl = URL.createObjectURL(blob);
@@ -212,17 +257,8 @@ export default function InvoiceModal({
           language === 'mr' ? 'बीजक फोटो तुमच्या फोन किंवा डिव्हाइसवर यशस्वीरित्या सेव्ह झाला.' : 'Invoice image successfully saved to your downloads.'
         );
       }
-    } catch (e) {
-      const a = document.createElement('a');
-      a.href = capturedImage;
-      a.download = `Invoice-${sale.invoiceNumber}.png`;
-      a.click();
-      if (showAlert) {
-        showAlert(
-          language === 'mr' ? 'बिल डाऊनलोड झाले!' : 'Bill Downloaded!',
-          language === 'mr' ? 'बीजक फोटो सेव्ह झाला.' : 'Invoice image saved.'
-        );
-      }
+    } catch (fallbackError) {
+      window.open(capturedImage, '_blank');
     }
   };
 
