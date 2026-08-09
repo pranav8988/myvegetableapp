@@ -350,28 +350,28 @@ export default function SalesHistory({
           <div className="flex flex-wrap items-center gap-2 shrink-0 w-full sm:w-auto justify-start sm:justify-end">
             <button
               onClick={handlePrintReport}
-              className="flex-1 sm:flex-initial py-2 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-xs"
+              className="flex-1 sm:flex-initial py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition flex items-center justify-center gap-1.5 text-xs cursor-pointer select-none active:scale-95 touch-manipulation shadow-xs"
               title={language === 'mr' ? 'अहवाल प्रिंट करा किंवा PDF जतन करा' : 'Print or Save Statement PDF'}
             >
-              <Printer className="w-4 h-4" />
+              <Printer className="w-4 h-4 pointer-events-none" />
               <span>{language === 'mr' ? 'प्रिंट / PDF' : 'Print / Save PDF'}</span>
             </button>
             
             <button
               onClick={handleExportFilteredXlsx}
-              className="flex-1 sm:flex-initial py-2 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold transition flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-xs"
+              className="flex-1 sm:flex-initial py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold transition flex items-center justify-center gap-1.5 text-xs cursor-pointer select-none active:scale-95 touch-manipulation shadow-xs"
               title={language === 'mr' ? 'निवडलेल्या डेटाची Excel फाईल डाउनलोड करा' : 'Download Filtered Excel (.xlsx)'}
             >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+              <FileSpreadsheet className="w-4 h-4 text-emerald-400 pointer-events-none" />
               <span>{language === 'mr' ? 'Excel (.xlsx)' : 'Excel (.xlsx)'}</span>
             </button>
 
             <button
               onClick={handleResetFilters}
-              className="py-2 px-3.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold transition flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-xs"
+              className="py-2.5 px-4 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold transition flex items-center justify-center gap-1.5 text-xs cursor-pointer select-none active:scale-95 touch-manipulation shadow-xs"
               title={language === 'mr' ? 'सर्व फिल्टर्स पूर्ववत करा' : 'Reset All Filters'}
             >
-              <RefreshCcw className="w-3.5 h-3.5" />
+              <RefreshCcw className="w-3.5 h-3.5 pointer-events-none" />
               <span>{language === 'mr' ? 'रीसेट' : 'Reset'}</span>
             </button>
           </div>
