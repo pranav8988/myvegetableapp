@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Printer, Share2, Check, Copy, AlertCircle, Camera, Download, Image as ImageIcon, Sparkles } from 'lucide-react';
+import { X, Printer, Share2, Check, Copy, AlertCircle, Camera, Download, Image as ImageIcon, Sparkles, Send } from 'lucide-react';
 import { Sale } from '../types';
 import { useState, useRef } from 'react';
 import { useLanguage } from '../lib/translations';
@@ -184,7 +184,7 @@ export default function InvoiceModal({
     }
   };
 
-  // Instant 1-Tap Cross-Platform Mobile Download Handler
+  // Universal 1-Tap Mobile Download Handler
   const handleDirectDownload = async () => {
     setDownloading(true);
     try {
@@ -195,7 +195,7 @@ export default function InvoiceModal({
 
       const filename = `Invoice-${sale.invoiceNumber}.png`;
 
-      // 1. Android APK Native Bridge Hook
+      // 1. Android APK Native Bridge Hook (Expo APK)
       if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
         (window as any).ReactNativeWebView.postMessage(
           JSON.stringify({
@@ -215,29 +215,33 @@ export default function InvoiceModal({
         return;
       }
 
-      // 2. Mobile Browser Octet-Stream Direct Download
-      const octetUri = imgData.replace(/^data:image\/[^;]+/, 'data:application/octet-stream');
-      const a = document.createElement('a');
-      a.href = octetUri;
-      a.download = filename;
-      a.target = '_self';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        document.body.removeChild(a);
-      }, 1000);
+      // 2. Open Screenshot Preview Modal so user can direct-save or long-press on ANY Android APK / WebView
+      setCapturedImage(imgData);
+
+      // 3. Mobile Browser Octet-Stream Direct Download trigger
+      try {
+        const octetUri = imgData.replace(/^data:image\/[^;]+/, 'data:application/octet-stream');
+        const a = document.createElement('a');
+        a.href = octetUri;
+        a.download = filename;
+        a.target = '_self';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+        }, 1000);
+      } catch (e) {
+        console.warn('Anchor click ignored by WebView, preview is open.');
+      }
 
       if (showAlert) {
         showAlert(
-          language === 'mr' ? 'बिल फोटो डाऊनलोड झाले!' : 'Bill Image Downloaded!',
-          language === 'mr' ? 'बीजक फोटो तुमच्या फोनवर सेव्ह झाला.' : 'Invoice image successfully saved to your downloads.'
+          language === 'mr' ? 'बिल फोटो तयार आहे!' : 'Bill Image Ready!',
+          language === 'mr' ? 'फोटो डाउनलोड करण्यासाठी खालील इमेज दाबून धरा (Long Press).' : 'Tap & hold the image below to save to your photo gallery.'
         );
       }
     } catch (err) {
       console.error('Download error:', err);
-      if (capturedImage) {
-        window.open(capturedImage, '_blank');
-      }
     } finally {
       setDownloading(false);
     }
@@ -275,6 +279,11 @@ export default function InvoiceModal({
         });
         return;
       }
+
+      // 3. Fallback: Copy image to clipboard and open WhatsApp
+      await handleCopyImageToClipboard();
+      const whatsappUrl = `https://api.whatsapp.com/send?phone=${whatsappNumber ? `91${whatsappNumber}` : ''}&text=${getWhatsAppText()}`;
+      window.open(whatsappUrl, '_blank');
     } catch (err: any) {
       if (err?.name !== 'AbortError') {
         console.warn('Share error:', err);
@@ -297,7 +306,7 @@ export default function InvoiceModal({
         if (showAlert) {
           showAlert(
             language === 'mr' ? 'इमेज कॉपी झाली!' : 'Image Copied!',
-            language === 'mr' ? 'बिल इमेज क्लिपबोर्डवर कॉपी झाली. तुम्ही थेट पेस्ट करू शकता.' : 'Invoice image copied to clipboard. You can paste it directly.'
+            language === 'mr' ? 'बिल इमेज क्लिपबोर्डवर कॉपी झाली. तुम्ही थेट व्हॉट्सॲपवर पेस्ट करू शकता.' : 'Invoice image copied to clipboard. You can paste it directly into WhatsApp.'
           );
         }
       }
@@ -490,7 +499,7 @@ Thank you for your purchase! 🍅🥬
                       <AlertCircle className="w-4 h-4 text-rose-500" />
                       {t('bal_due') || 'Pending Balance'}
                     </span>
-                    <span className="font-mono text-sm">₹{balanceDue.toFixed(1)}</span>
+                    <span className="font-mono text-sm">₹${balanceDue.toFixed(1)}</span>
                   </div>
                 ) : (
                   <div className="flex justify-between text-emerald-700 font-bold border-t border-emerald-200/80 border-dashed pt-2 mt-1 font-sans items-center">
@@ -604,7 +613,7 @@ Thank you for your purchase! 🍅🥬
                   className="flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-lg transition cursor-pointer select-none active:scale-95 touch-manipulation shadow-xs"
                   title="Share invoice directly to WhatsApp"
                 >
-                  <Share2 className="w-3.5 h-3.5 pointer-events-none" />
+                  <Send className="w-3.5 h-3.5 pointer-events-none" />
                   <span>{t('send_whatsapp')}</span>
                 </a>
               </div>
@@ -638,7 +647,7 @@ Thank you for your purchase! 🍅🥬
         </motion.div>
       </motion.div>
 
-      {/* Captured Image Screenshot Preview Overlay */}
+      {/* Captured Image Screenshot Preview Overlay (Guaranteed to work in ALL Android WebViews) */}
       {capturedImage && (
         <div key="captured-image-overlay" className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm no-print">
           <motion.div
@@ -660,36 +669,47 @@ Thank you for your purchase! 🍅🥬
             </div>
             <div>
               <h4 className="font-display font-bold text-slate-800 text-base flex items-center justify-center gap-1.5">
-                <span>{language === 'mr' ? 'स्क्रीनशॉट तयार आहे!' : 'Screenshot Ready!'}</span>
+                <span>{language === 'mr' ? 'स्क्रीनशॉट तयार आहे!' : 'Bill Image Ready!'}</span>
                 <Sparkles className="w-4 h-4 text-amber-500" />
               </h4>
               <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
                 {language === 'mr' 
-                  ? 'फोटो सेव्ह करण्यासाठी खालील बटण दाबा किंवा फोटो दाबून धरा.'
-                  : 'Tap below to download or tap & hold image to save to gallery.'}
+                  ? 'फोटो सेव्ह करण्यासाठी खालील इमेज दाबून धरा (Long Press).'
+                  : 'Tap below to copy, or tap & hold (long press) image to save to gallery.'}
               </p>
             </div>
             
-            {/* Captured preview img */}
+            {/* Captured preview img - LONG PRESS TO SAVE */}
             <div className="border border-slate-200 rounded-xl p-2 bg-slate-50 max-h-60 overflow-y-auto w-full flex justify-center shadow-inner">
               <img 
                 src={capturedImage} 
-                alt="Captured Invoice" 
-                className="max-w-full h-auto object-contain rounded-lg shadow-xs select-none"
-                referrerPolicy="no-referrer"
+                alt="Captured Invoice - Long Press to Save" 
+                className="max-w-full h-auto object-contain rounded-lg shadow-xs"
               />
+            </div>
+
+            {/* Instruction Banner */}
+            <div className="w-full bg-amber-50 border border-amber-200 rounded-xl p-2 text-[10.5px] text-amber-900 font-medium flex items-center justify-center gap-1.5">
+              <span>👆</span>
+              <span>
+                {language === 'mr' 
+                  ? 'फोनमध्ये सेव्ह करण्यासाठी फोटोवर बोट दाबून धरा (Long Press)' 
+                  : 'Long-press on image to Save to Phone Photos / Gallery'}
+              </span>
             </div>
 
             {/* Action buttons */}
             <div className="grid grid-cols-3 gap-2 w-full mt-1">
-              <button
-                onClick={handleDirectDownload}
+              {/* Direct Anchor Download Link for Browsers that support it */}
+              <a
+                href={capturedImage}
+                download={`Invoice-${sale.invoiceNumber}.png`}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] py-2.5 px-2 rounded-xl transition text-center flex flex-col items-center justify-center gap-1 cursor-pointer select-none active:scale-95 touch-manipulation shadow-xs"
                 title="Download Bill Image"
               >
                 <Download className="w-4 h-4 pointer-events-none" />
                 <span>{language === 'mr' ? 'डाउनलोड' : 'Download'}</span>
-              </button>
+              </a>
               
               <button
                 onClick={handleCopyImageToClipboard}
@@ -701,7 +721,7 @@ Thank you for your purchase! 🍅🥬
                 title="Copy Image to Clipboard"
               >
                 {imageCopied ? <Check className="w-4 h-4 text-emerald-600 pointer-events-none" /> : <ImageIcon className="w-4 h-4 pointer-events-none" />}
-                <span>{imageCopied ? (language === 'mr' ? 'कॉपी!' : 'Copied!') : (language === 'mr' ? 'कॉपी इमेज' : 'Copy')}</span>
+                <span>{imageCopied ? (language === 'mr' ? 'कॉपी!' : 'Copied!') : (language === 'mr' ? 'कॉपी इमेज' : 'Copy Image')}</span>
               </button>
 
               <button

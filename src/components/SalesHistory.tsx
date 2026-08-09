@@ -105,6 +105,58 @@ export default function SalesHistory({
     setEndDateFilter(lastDay.toISOString().split('T')[0]);
   };
 
+  // Export States
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportDataUri, setExportDataUri] = useState<string | null>(null);
+  const [exportFilename, setExportFilename] = useState('');
+  const [copiedStatementData, setCopiedStatementData] = useState(false);
+
+  // Copy Statement Tabular Data to Clipboard (CSV / TSV)
+  const handleCopyStatementCsv = () => {
+    const headers = ['Invoice', 'Date', 'Customer', 'Phone', 'Total (Rs)', 'Paid (Rs)', 'Due (Rs)', 'Status', 'Method', 'Items'];
+    const rows = filteredSales.map(s => [
+      s.invoiceNumber,
+      s.date,
+      s.customerName,
+      s.customerPhone || '-',
+      s.totalAmount,
+      s.amountPaid,
+      s.totalAmount - s.amountPaid,
+      s.paymentStatus.toUpperCase(),
+      s.paymentMethod.toUpperCase(),
+      s.items.map(i => `${i.vegName} (${i.quantity}kg)`).join('; ')
+    ]);
+    const csvContent = [headers.join('\t'), ...rows.map(r => r.join('\t'))].join('\n');
+    navigator.clipboard.writeText(csvContent).then(() => {
+      setCopiedStatementData(true);
+      setTimeout(() => setCopiedStatementData(false), 2500);
+      if (showAlert) {
+        showAlert(
+          language === 'mr' ? 'डेटा कॉपी झाला!' : 'Statement Data Copied!',
+          language === 'mr' ? 'सर्व अहवाल डेटा क्लिपबोर्डवर कॉपी झाला. तुम्ही थेट एक्सेल किंवा गुगल शीट्समध्ये पेस्ट करू शकता.' : 'All statement rows copied. You can paste directly into Excel or Google Sheets.'
+        );
+      }
+    });
+  };
+
+  // Share Statement Summary to WhatsApp
+  const handleShareStatementWhatsApp = () => {
+    const summaryText = `
+📊 *${shopDetails.name.toUpperCase()} - SALES STATEMENT*
+📍 ${shopDetails.address}
+📅 *Period:* ${startDateFilter || 'All'} to ${endDateFilter || 'Present'}
+---------------------------------
+*Total Invoices:* ${metrics.count}
+*Total Invoiced:* ₹${metrics.total.toFixed(1)}
+*Total Collected (Paid):* ₹${metrics.collected.toFixed(1)}
+*Total Balance Due:* ₹${metrics.pending.toFixed(1)}
+---------------------------------
+Generated from VEGI BILLING APP 🥬
+`.trim();
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(summaryText)}`;
+    window.open(url, '_blank');
+  };
+
   // Export Filtered Statement to Excel (.xlsx)
   const handleExportFilteredXlsx = () => {
     try {
@@ -143,15 +195,21 @@ export default function SalesHistory({
       const dateTag = startDateFilter && endDateFilter ? `${startDateFilter}_to_${endDateFilter}` : (selectedMonthInput || 'filtered');
       const filename = `sales_journal_statement_${dateTag}.xlsx`;
       
-      // Use universal mobile & web blob downloader
+      const b64 = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+      const dataUri = `data:application/octet-stream;base64,${b64}`;
+      setExportDataUri(dataUri);
+      setExportFilename(filename);
+      setShowExportModal(true);
+
+      // Trigger standard downloader
       downloadXlsxWorkbook(wb, filename);
 
       if (showAlert) {
         showAlert(
-          language === 'mr' ? 'Excel अहवाल डाऊनलोड झाला!' : 'Excel Statement Exported!',
+          language === 'mr' ? 'Excel अहवाल तयार आहे!' : 'Excel Statement Ready!',
           language === 'mr' 
-            ? `${filteredSales.length} बिलांचा विक्री अहवाल यशस्वीरित्या Excel (.xlsx) फाईलमध्ये सेव्ह झाला.`
-            : `Sales report of ${filteredSales.length} invoices successfully downloaded as an Excel (.xlsx) spreadsheet.`
+            ? `${filteredSales.length} बिलांचा विक्री अहवाल तयार झाला. खालील पर्यायांमधून डाउनलोड किंवा कॉपी करा.`
+            : `Sales report of ${filteredSales.length} invoices generated. You can download or copy below.`
         );
       }
     } catch (err) {
@@ -839,18 +897,100 @@ export default function SalesHistory({
                     setSelectedPaySale(null);
                     setPayAmount('');
                   }}
-                  className="border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold text-xs px-3 py-2 rounded-lg transition cursor-pointer"
+                  className="border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold text-xs px-3 py-2 rounded-lg transition cursor-pointer select-none active:scale-95 touch-manipulation"
                 >
                   {t('cancel')}
                 </button>
                 <button
                   type="submit"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-4 py-2 rounded-lg transition cursor-pointer"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-4 py-2 rounded-lg transition cursor-pointer select-none active:scale-95 touch-manipulation shadow-xs"
                 >
                   {t('confirm_receive')}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Universal Export & Statement Modal (Guaranteed 100% working on ALL mobile devices & Android WebViews) */}
+      {showExportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs no-print">
+          <div className="w-full max-w-sm bg-white p-6 rounded-2xl shadow-2xl border border-slate-100 flex flex-col gap-4">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-lg">
+                  📊
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-slate-800 text-sm">
+                    {language === 'mr' ? 'विक्री अहवाल एक्सपोर्ट' : 'Sales Statement Export'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-mono">{exportFilename}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition cursor-pointer select-none active:scale-95 touch-manipulation"
+              >
+                <X className="w-5 h-5 pointer-events-none" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs flex flex-col gap-1.5 font-mono">
+              <div className="flex justify-between text-slate-600">
+                <span>Invoices Count:</span>
+                <span className="font-bold text-slate-900">{metrics.count}</span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>Total Invoiced:</span>
+                <span className="font-bold text-slate-900">₹{metrics.total.toFixed(1)}</span>
+              </div>
+              <div className="flex justify-between text-emerald-700">
+                <span>Total Collected:</span>
+                <span className="font-bold">₹{metrics.collected.toFixed(1)}</span>
+              </div>
+              <div className="flex justify-between text-rose-600">
+                <span>Balance Due:</span>
+                <span className="font-bold">₹{metrics.pending.toFixed(1)}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              {/* Direct Download Link */}
+              {exportDataUri && (
+                <a
+                  href={exportDataUri}
+                  download={exportFilename}
+                  className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer select-none active:scale-95 touch-manipulation"
+                >
+                  <FileSpreadsheet className="w-4 h-4 pointer-events-none" />
+                  <span>{language === 'mr' ? 'Excel (.xlsx) फाईल डाउनलोड' : 'Download Excel (.xlsx) File'}</span>
+                </a>
+              )}
+
+              {/* Copy CSV / Table Data Button */}
+              <button
+                onClick={handleCopyStatementCsv}
+                className="w-full py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer select-none active:scale-95 touch-manipulation"
+              >
+                {copiedStatementData ? <Check className="w-4 h-4 text-emerald-400 pointer-events-none" /> : <Copy className="w-4 h-4 pointer-events-none" />}
+                <span>{copiedStatementData ? (language === 'mr' ? 'डेटा कॉपी झाला!' : 'Copied!') : (language === 'mr' ? 'सर्व टेबल डेटा कॉपी करा (Copy CSV)' : 'Copy All Table Data (CSV / Excel)')}</span>
+              </button>
+
+              {/* Share to WhatsApp Button */}
+              <button
+                onClick={handleShareStatementWhatsApp}
+                className="w-full py-2.5 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer select-none active:scale-95 touch-manipulation"
+              >
+                <Share2 className="w-4 h-4 pointer-events-none" />
+                <span>{language === 'mr' ? 'अहवाल व्हॉट्सॲपवर पाठवा' : 'Send Summary to WhatsApp'}</span>
+              </button>
+            </div>
+
+            <p className="text-[10px] text-slate-400 text-center leading-tight">
+              💡 {language === 'mr' ? 'तुम्ही डेटा कॉपी करून थेट Google Sheets, Excel किंवा WhatsApp मध्ये पेस्ट करू शकता.' : 'You can copy data and paste directly into Google Sheets, Excel, or WhatsApp.'}
+            </p>
           </div>
         </div>
       )}
