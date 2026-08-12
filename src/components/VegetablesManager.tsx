@@ -196,7 +196,7 @@ interface VegetablesManagerProps {
   onDelete: (id: string) => void;
   onResetToDefault: () => void;
   onBulkUpdate: (updatedList: Vegetable[]) => void;
-  shopDetails: { name: string; address?: string; phone?: string; gstin?: string; logo?: string };
+  shopDetails: { name: string; address?: string; phone?: string; gstin?: string; logo?: string; upiId?: string; upiName?: string };
   showConfirm: (title: string, message: string, onConfirm: () => void) => void;
 }
 
@@ -855,7 +855,7 @@ export default function VegetablesManager({
                                 <input
                                   type="checkbox"
                                   checked={includeExisting}
-                                  onChange={(e) => setIncludeExisting(e.checked || e.target.checked)}
+                                  onChange={(e) => setIncludeExisting(e.target.checked)}
                                   className="rounded-sm border-slate-300 text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 cursor-pointer"
                                 />
                                 {t('update_veg_price')}
@@ -864,7 +864,7 @@ export default function VegetablesManager({
                                 <input
                                   type="checkbox"
                                   checked={includeNew}
-                                  onChange={(e) => setIncludeNew(e.checked || e.target.checked)}
+                                  onChange={(e) => setIncludeNew(e.target.checked)}
                                   className="rounded-sm border-slate-300 text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 cursor-pointer"
                                 />
                                 {t('new_veg_to_add')}

@@ -52,5 +52,8 @@ export interface ShopDetails {
   phone: string;
   gstin?: string;
   logo?: string; // Image DataURL (Base64), image URL, or custom emoji
+  upiId?: string; // UPI ID / VPA (e.g., merchant@upi, 9876543210@paytm)
+  upiName?: string; // Optional payee name (defaults to shop name)
 }
+
 

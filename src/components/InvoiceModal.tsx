@@ -1,9 +1,10 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Printer, Share2, Check, Copy, AlertCircle, Camera, Download, Image as ImageIcon, Sparkles, Send } from 'lucide-react';
+import { X, Printer, Share2, Check, Copy, AlertCircle, Camera, Download, Image as ImageIcon, Sparkles, Send, Zap, QrCode } from 'lucide-react';
 import { Sale } from '../types';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useLanguage } from '../lib/translations';
 import { renderInvoiceToCanvas } from '../lib/invoiceCanvasRenderer';
+import QRCode from 'qrcode';
 
 interface InvoiceModalProps {
   sale: Sale | null;
@@ -14,6 +15,8 @@ interface InvoiceModalProps {
     phone: string;
     gstin?: string;
     logo?: string;
+    upiId?: string;
+    upiName?: string;
   };
   showAlert?: (title: string, message: string) => void;
 }
@@ -55,6 +58,8 @@ export default function InvoiceModal({
   const [downloading, setDownloading] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [captureError, setCaptureError] = useState<string | null>(null);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  const [upiCopied, setUpiCopied] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState(() => {
     const cleaned = (sale ? (sale.customerPhone || '') : '').replace(/\D/g, '');
     return cleaned.length >= 10 ? cleaned.slice(-10) : cleaned;
@@ -63,6 +68,25 @@ export default function InvoiceModal({
   if (!sale) return null;
 
   const balanceDue = Number(sale.totalAmount || 0) - Number(sale.amountPaid || 0);
+  const payableAmount = balanceDue > 0 ? balanceDue : Number(sale.totalAmount || 0);
+  const upiId = shopDetails.upiId?.trim() || '';
+  const upiPayeeName = shopDetails.upiName?.trim() || shopDetails.name || 'Merchant';
+
+  // Generate UPI QR Code Data URL on-the-fly
+  useEffect(() => {
+    if (!upiId) {
+      setQrCodeDataUrl('');
+      return;
+    }
+    const upiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(upiPayeeName)}&am=${payableAmount.toFixed(2)}&cu=INR&tn=${encodeURIComponent('Bill ' + (sale.invoiceNumber || 'INV'))}`;
+    QRCode.toDataURL(upiUri, {
+      width: 240,
+      margin: 1,
+      color: { dark: '#064e3b', light: '#ffffff' }
+    })
+      .then((url) => setQrCodeDataUrl(url))
+      .catch((err) => console.warn('QR code generation error:', err));
+  }, [upiId, upiPayeeName, payableAmount, sale.invoiceNumber]);
 
   // Helper to generate canvas image on-the-fly
   const getOrGenerateImage = async (): Promise<string> => {
@@ -95,6 +119,7 @@ export default function InvoiceModal({
           .total-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px; border-radius: 8px; margin-top: 16px; font-size: 14px; }
           .total-row { display: flex; justify-content: space-between; margin: 4px 0; }
           .grand { font-size: 18px; font-weight: bold; color: #047857; }
+          .upi-box { text-align: center; border: 1.5px dashed #059669; background: #f0fdf4; border-radius: 8px; padding: 12px; margin-top: 16px; }
           .footer { text-align: center; font-size: 11px; color: #94a3b8; margin-top: 24px; }
           @media print {
             body { padding: 0; }
@@ -121,10 +146,19 @@ export default function InvoiceModal({
           <div class="total-row"><span>Amount Paid:</span><span>₹${Number(sale.amountPaid).toFixed(1)}</span></div>
           ${balanceDue > 0 ? `<div class="total-row" style="color:#e11d48;font-weight:bold"><span>Balance Due:</span><span>₹${balanceDue.toFixed(1)}</span></div>` : `<div class="total-row" style="color:#047857;font-weight:bold"><span>Status:</span><span>PAID IN FULL</span></div>`}
         </div>
+        ${upiId && qrCodeDataUrl ? `
+          <div class="upi-box">
+            <p style="font-size: 12px; font-weight: bold; color: #047857; margin: 0 0 6px 0; text-transform: uppercase;">⚡ Scan & Pay via UPI (₹${payableAmount.toFixed(1)})</p>
+            <img src="${qrCodeDataUrl}" alt="UPI QR" style="width: 125px; height: 125px; background: #fff; padding: 4px; border: 1px solid #cbd5e1; border-radius: 6px;" />
+            <p style="font-size: 11px; font-weight: 600; color: #334155; margin: 4px 0 0 0; font-family: monospace;">UPI ID: ${upiId}</p>
+            <p style="font-size: 9px; color: #64748b; margin: 2px 0 0 0;">Accepts Google Pay, PhonePe, Paytm, BHIM</p>
+          </div>
+        ` : ''}
         <div class="footer">Thank you for your purchase! Buy Fresh, Eat Healthy!</div>
       </body>
       </html>
     `;
+
 
     // 1. Android APK Native Print Bridge Hook
     try {
@@ -337,6 +371,7 @@ ${itemsText}
 *Amount Paid:* ₹${sale.amountPaid}
 ${balanceDue > 0 ? `*Balance Due:* ₹${balanceDue}` : '*Status:* PAID IN FULL ✅'}
 *Payment Mode:* ${(sale.paymentMethod || 'cash').toUpperCase()}
+${shopDetails.upiId ? `---------------------------------\n📲 *Pay via UPI:* ${shopDetails.upiId}\n*Amount Payable:* ₹${payableAmount.toFixed(1)}` : ''}
 ---------------------------------
 Thank you for your purchase! 🍅🥬
 `.trim();
@@ -358,7 +393,11 @@ Thank you for your purchase! 🍅🥬
       .map((item, idx) => `${idx + 1}. ${item.vegName} - ${item.quantity}kg @ ₹${item.pricePerKg}/kg = ₹${item.total}`)
       .join('%0A');
 
-    return `🧾 *${encodeURIComponent(shopDetails.name.toUpperCase())}*%0A📍 ${encodeURIComponent(shopDetails.address)}%0A📞 ${encodeURIComponent(shopDetails.phone)}%0A---------------------------------%0A*Invoice:* ${sale.invoiceNumber}%0A*Date:* ${sale.date}%0A*Customer:* ${encodeURIComponent(sale.customerName)}%0A---------------------------------%0A*Items:*%0A${itemsText}%0A---------------------------------%0A*Grand Total:* ₹${sale.totalAmount}%0A*Amount Paid:* ₹${sale.amountPaid}%0A${balanceDue > 0 ? `*Balance Due:* ₹${balanceDue}` : '*Status:* PAID IN FULL ✅'}%0A*Payment Mode:* ${(sale.paymentMethod || 'cash').toUpperCase()}%0A---------------------------------%0AThank you for your purchase! 🍅🥬`;
+    const upiText = shopDetails.upiId 
+      ? `%0A---------------------------------%0A📲 *Pay via UPI:* ${encodeURIComponent(shopDetails.upiId)}%0A⚡ *Pay Amount:* ₹${payableAmount.toFixed(1)}`
+      : '';
+
+    return `🧾 *${encodeURIComponent(shopDetails.name.toUpperCase())}*%0A📍 ${encodeURIComponent(shopDetails.address)}%0A📞 ${encodeURIComponent(shopDetails.phone)}%0A---------------------------------%0A*Invoice:* ${sale.invoiceNumber}%0A*Date:* ${sale.date}%0A*Customer:* ${encodeURIComponent(sale.customerName)}%0A---------------------------------%0A*Items:*%0A${itemsText}%0A---------------------------------%0A*Grand Total:* ₹${sale.totalAmount}%0A*Amount Paid:* ₹${sale.amountPaid}%0A${balanceDue > 0 ? `*Balance Due:* ₹${balanceDue}` : '*Status:* PAID IN FULL ✅'}%0A*Payment Mode:* ${(sale.paymentMethod || 'cash').toUpperCase()}${upiText}%0A---------------------------------%0AThank you for your purchase! 🍅🥬`;
   };
 
   return (
@@ -508,6 +547,66 @@ Thank you for your purchase! 🍅🥬
                   </div>
                 )}
               </div>
+
+              {/* UPI QR Payment Card (if UPI ID is configured in settings) */}
+              {upiId && qrCodeDataUrl && (
+                <div className="p-4 rounded-xl border-2 border-dashed border-emerald-400 bg-emerald-50/70 text-center mb-4 flex flex-col items-center shadow-xs">
+                  <div className="flex items-center justify-center gap-1.5 text-emerald-800 font-bold text-xs uppercase tracking-wider mb-2">
+                    <Zap className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600 animate-pulse" />
+                    <span>{language === 'mr' ? '⚡ स्कॅन करून UPI द्वारे पैसे भरा' : '⚡ Scan & Pay via UPI'}</span>
+                  </div>
+
+                  {/* QR Image Container */}
+                  <div className="p-2.5 bg-white rounded-xl shadow-xs border border-emerald-200 mb-2">
+                    <img
+                      src={qrCodeDataUrl}
+                      alt="UPI Payment QR Code"
+                      className="w-36 h-36 sm:w-40 sm:h-40 object-contain mx-auto"
+                    />
+                  </div>
+
+                  {/* Amount Badge */}
+                  <div className="inline-flex items-center gap-1 bg-emerald-700 text-white font-mono font-bold text-xs px-3 py-1 rounded-full shadow-xs mb-1.5">
+                    <span>{language === 'mr' ? 'देय रक्कम:' : 'Pay Amount:'}</span>
+                    <span>₹{payableAmount.toFixed(1)}</span>
+                  </div>
+
+                  {/* Payee Info & Quick Copy */}
+                  <div className="flex items-center justify-center gap-1.5 text-slate-700 font-mono text-[11px] font-semibold mt-1">
+                    <span>UPI: {upiId}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (upiId) {
+                          navigator.clipboard.writeText(upiId);
+                          setUpiCopied(true);
+                          setTimeout(() => setUpiCopied(false), 2000);
+                        }
+                      }}
+                      className="text-emerald-700 hover:text-emerald-900 bg-emerald-100 hover:bg-emerald-200 px-1.5 py-0.5 rounded text-[10px] transition cursor-pointer flex items-center gap-0.5"
+                      title="Copy UPI ID"
+                    >
+                      {upiCopied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                      <span className="font-sans text-[9px]">{upiCopied ? (language === 'mr' ? 'कॉपी!' : 'Copied!') : (language === 'mr' ? 'कॉपी' : 'Copy')}</span>
+                    </button>
+                  </div>
+
+                  {shopDetails.upiName && (
+                    <p className="text-[10px] text-slate-500 font-sans mt-0.5">
+                      Payee: {shopDetails.upiName}
+                    </p>
+                  )}
+
+                  {/* Supported UPI Apps Badges */}
+                  <div className="mt-2.5 pt-2 border-t border-emerald-200/80 w-full flex items-center justify-center flex-wrap gap-1.5 text-[9px] text-emerald-900 font-bold">
+                    <span className="bg-white px-2 py-0.5 rounded border border-emerald-200 shadow-2xs">Google Pay</span>
+                    <span className="bg-white px-2 py-0.5 rounded border border-emerald-200 shadow-2xs">PhonePe</span>
+                    <span className="bg-white px-2 py-0.5 rounded border border-emerald-200 shadow-2xs">Paytm</span>
+                    <span className="bg-white px-2 py-0.5 rounded border border-emerald-200 shadow-2xs">BHIM</span>
+                    <span className="bg-white px-2 py-0.5 rounded border border-emerald-200 shadow-2xs">Cred</span>
+                  </div>
+                </div>
+              )}
 
               {/* Method and Notes Card */}
               <div className="p-4 rounded-xl border border-slate-200 bg-white text-xs text-slate-600">

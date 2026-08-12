@@ -134,10 +134,17 @@ export const translations = {
     shop_address_label: "Shop Address",
     shop_phone_label: "Shop Phone / Contact",
     gstin_label: "GSTIN (Optional)",
+    upi_id_label: "UPI ID / VPA (For QR Payments)",
+    upi_id_placeholder: "e.g. yourshop@okaxis or 9876543210@paytm",
+    upi_name_label: "UPI Payee Name (Optional)",
+    upi_qr_preview: "UPI QR Code Live Preview",
+    scan_and_pay: "Scan & Pay via UPI",
+    scan_qr_desc: "Google Pay, PhonePe, Paytm, BHIM, Cred or any UPI App",
     save_changes: "Save Settings",
     danger_zone: "Danger Zone",
     factory_reset: "Complete System Factory Reset",
     reset_app_desc: "This will permanently delete all sales ledger, customer profiles, custom vegetables, and restore settings.",
+
     
     // Messages/Alerts
     reset_success: "Reset Successful",
@@ -326,10 +333,17 @@ export const translations = {
     shop_address_label: "दुकानचा पत्ता",
     shop_phone_label: "दुकानचा फोन / संपर्क",
     gstin_label: "जीएसटीआयएन (GSTIN - ऐच्छिक)",
+    upi_id_label: "यूपीआय आयडी / VPA (QR पेमेंटसाठी)",
+    upi_id_placeholder: "उदा. yourshop@okaxis किंवा 9876543210@paytm",
+    upi_name_label: "यूपीआय धारकाचे नाव (ऐच्छिक)",
+    upi_qr_preview: "यूपीआय QR कोड थेट पूर्वावलोकन",
+    scan_and_pay: "कोणत्याही UPI ॲपने स्कॅन करून भरा",
+    scan_qr_desc: "Google Pay, PhonePe, Paytm, BHIM किंवा इतर UPI ॲप्स",
     save_changes: "बदल जतन करा",
     danger_zone: "धोकादायक क्षेत्र",
     factory_reset: "पूर्ण ॲप डेटा रीसेट करा (फॅक्टरी रीसेट)",
     reset_app_desc: "यामुळे तुमच्या विक्री नोंदी, ग्राहकांचे प्रोफाइल, जोडलेले भाजीपाले कायमचे डिलीट होतील.",
+
     
     // Messages/Alerts
     reset_success: "रीसेट यशस्वी",

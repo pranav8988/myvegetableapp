@@ -1,11 +1,13 @@
 import { Sale } from '../types';
+import QRCode from 'qrcode';
 
 /**
  * Pure HTML5 2D Canvas Invoice Generator
  * Bulletproof, crash-free renderer with safe null/undefined handling.
  * Guaranteed to generate a crisp 32-bit PNG receipt in <20ms on ALL mobile devices.
+ * Dynamically includes UPI QR Code when upiId is configured in Shop Settings.
  */
-export const renderInvoiceToCanvas = (
+export const renderInvoiceToCanvas = async (
   sale: Sale,
   shopDetails: {
     name: string;
@@ -13,10 +15,12 @@ export const renderInvoiceToCanvas = (
     phone: string;
     gstin?: string;
     logo?: string;
+    upiId?: string;
+    upiName?: string;
   },
   language: 'mr' | 'en' = 'en'
 ): Promise<string> => {
-  return new Promise((resolve) => {
+  return new Promise(async (resolve) => {
     try {
       if (!sale || !sale.items) {
         resolve('');
@@ -24,9 +28,11 @@ export const renderInvoiceToCanvas = (
       }
 
       const width = 640;
-      const baseHeight = 600;
+      const baseHeight = 580;
       const itemRowHeight = 36;
-      const totalHeight = baseHeight + (sale.items.length || 1) * itemRowHeight;
+      const hasUpi = Boolean(shopDetails?.upiId?.trim());
+      const upiSectionHeight = hasUpi ? 165 : 0;
+      const totalHeight = baseHeight + (sale.items.length || 1) * itemRowHeight + upiSectionHeight;
 
       const canvas = document.createElement('canvas');
       canvas.width = width;
@@ -187,17 +193,86 @@ export const renderInvoiceToCanvas = (
         ctx.fillText('PAID IN FULL ✅', width - 40, currentY + 118);
       }
 
-      // 6. Payment Mode and Notes
-      currentY += cardHeight + 20;
+      currentY += cardHeight + 15;
+
+      // 6. UPI QR Code Section (if configured)
+      if (hasUpi && shopDetails.upiId) {
+        const upiId = shopDetails.upiId.trim();
+        const upiPayee = shopDetails.upiName?.trim() || shopDetails.name || 'Merchant';
+        const payableAmt = balance > 0 ? balance : Number(sale.totalAmount || 0);
+        const upiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(upiPayee)}&am=${payableAmt.toFixed(2)}&cu=INR&tn=${encodeURIComponent('Bill ' + (sale.invoiceNumber || 'INV'))}`;
+
+        try {
+          const qrDataUrl = await QRCode.toDataURL(upiUri, {
+            width: 140,
+            margin: 1,
+            color: { dark: '#064e3b', light: '#ffffff' }
+          });
+
+          // Draw UPI Card Box
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(20, currentY, width - 40, 140);
+          ctx.strokeStyle = '#cbd5e1';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(20, currentY, width - 40, 140);
+
+          // Draw QR Image
+          const qrImg = new Image();
+          await new Promise<void>((r) => {
+            qrImg.onload = () => r();
+            qrImg.onerror = () => r();
+            qrImg.src = qrDataUrl;
+          });
+
+          if (qrImg.width) {
+            ctx.drawImage(qrImg, 35, currentY + 12, 116, 116);
+          }
+
+          // UPI Details on Right
+          const textLeft = 170;
+          ctx.textAlign = 'left';
+
+          // Title
+          ctx.fillStyle = '#047857';
+          ctx.font = 'bold 15px system-ui, -apple-system, sans-serif';
+          ctx.fillText(
+            language === 'mr' ? '⚡ UPI द्वारे स्कॅन करून पैसे भरा' : '⚡ Scan & Pay via UPI',
+            textLeft,
+            currentY + 34
+          );
+
+          // Payable Amount
+          ctx.fillStyle = '#0f172a';
+          ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
+          ctx.fillText(`Amount to Pay: ₹${payableAmt.toFixed(1)}`, textLeft, currentY + 58);
+
+          // UPI ID & Payee
+          ctx.fillStyle = '#334155';
+          ctx.font = '12px system-ui, -apple-system, sans-serif';
+          ctx.fillText(`UPI ID: ${upiId}`, textLeft, currentY + 80);
+          ctx.fillText(`Payee: ${upiPayee}`, textLeft, currentY + 100);
+
+          // Supported Apps
+          ctx.fillStyle = '#64748b';
+          ctx.font = '11px system-ui, -apple-system, sans-serif';
+          ctx.fillText('Accepts GPay, PhonePe, Paytm, BHIM & all UPI apps', textLeft, currentY + 122);
+
+          currentY += 140 + 15;
+        } catch (qrErr) {
+          console.warn('Canvas QR generation error:', qrErr);
+        }
+      }
+
+      // 7. Payment Mode and Notes Footer
       ctx.fillStyle = '#64748b';
       ctx.font = '11px system-ui, -apple-system, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(
         `Payment Mode: ${(sale.paymentMethod || 'CASH').toUpperCase()} | Generated from VEGI BILLING APP`,
         width / 2,
-        currentY
+        currentY + 10
       );
-      ctx.fillText('Thank you for shopping with us! Buy Fresh, Eat Healthy! 🍅🥬🥦', width / 2, currentY + 20);
+      ctx.fillText('Thank you for shopping with us! Buy Fresh, Eat Healthy! 🍅🥬🥦', width / 2, currentY + 28);
 
       const dataUrl = canvas.toDataURL('image/png', 1.0);
       resolve(dataUrl);
@@ -207,3 +282,4 @@ export const renderInvoiceToCanvas = (
     }
   });
 };
+

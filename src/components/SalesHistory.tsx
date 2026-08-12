@@ -1,6 +1,6 @@
 import { useState, useMemo, FormEvent } from 'react';
 import { Sale } from '../types';
-import { Search, Eye, Trash2, CheckCircle2, Calendar, Filter, RefreshCcw, Edit, Download, Printer, FileSpreadsheet } from 'lucide-react';
+import { Search, Eye, Trash2, CheckCircle2, Calendar, Filter, RefreshCcw, Edit, Download, Printer, FileSpreadsheet, X, Check, Copy, Share2 } from 'lucide-react';
 import { useLanguage } from '../lib/translations';
 import * as XLSX from 'xlsx';
 import { downloadXlsxWorkbook } from '../lib/excelHelper';
@@ -18,6 +18,8 @@ interface SalesHistoryProps {
     phone: string;
     gstin?: string;
     logo?: string;
+    upiId?: string;
+    upiName?: string;
   };
   showAlert?: (title: string, message: string) => void;
 }

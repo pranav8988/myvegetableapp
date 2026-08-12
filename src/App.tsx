@@ -1,5 +1,5 @@
 import { useState, useEffect, FormEvent, ChangeEvent } from 'react';
-import { Vegetable, Sale, CustomerProfile } from './types';
+import { Vegetable, Sale, CustomerProfile, ShopDetails } from './types';
 import { DEFAULT_VEGETABLES, SAMPLE_SALES } from './data';
 import StatCards from './components/StatCards';
 import NewSaleForm from './components/NewSaleForm';
@@ -8,9 +8,10 @@ import PendingBills from './components/PendingBills';
 import VegetablesManager from './components/VegetablesManager';
 import InvoiceModal from './components/InvoiceModal';
 import BackupReports from './components/BackupReports';
-import { ShoppingCart, FileText, Users, Sliders, Info, Download, Upload, Clock, Database, Menu, X } from 'lucide-react';
+import { ShoppingCart, FileText, Users, Sliders, Info, Download, Upload, Clock, Database, Menu, X, QrCode, Zap, Check } from 'lucide-react';
 import { useLanguage } from './lib/translations.tsx';
 import { motion, AnimatePresence } from 'motion/react';
+import QRCode from 'qrcode';
 
 export default function App() {
   const { language, setLanguage, t } = useLanguage();
@@ -53,20 +54,24 @@ export default function App() {
 
   const [customerProfiles, setCustomerProfiles] = useState<CustomerProfile[]>(() => {
     const saved = localStorage.getItem('vegetables_customer_profiles');
-    if (saved) return JSON.parse(saved);
-    // extract unique profiles from SAMPLE_SALES
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Error loading profiles', e);
+      }
+    }
+    // Auto populate profiles from sample sales if empty
     const list: CustomerProfile[] = [];
     const seen = new Set<string>();
     SAMPLE_SALES.forEach((s) => {
-      const name = s.customerName.trim();
-      if (name && name !== 'Walk-in Customer') {
-        const phone = s.customerPhone || '';
-        const key = `${name.toLowerCase()}_${phone}`;
+      if (s.customerName && s.customerName !== 'Walk-in Customer') {
+        const key = s.customerName.toLowerCase();
         if (!seen.has(key)) {
           seen.add(key);
           list.push({
-            id: `cust-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
-            name,
+            id: `cust-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+            name: s.customerName,
             phone: s.customerPhone,
             createdAt: s.createdAt || new Date().toISOString()
           });
@@ -76,13 +81,15 @@ export default function App() {
     return list;
   });
 
-  const [shopDetails, setShopDetails] = useState(() => {
+  const [shopDetails, setShopDetails] = useState<ShopDetails>(() => {
     const saved = localStorage.getItem('shop_details_config');
     return saved ? JSON.parse(saved) : {
       name: 'Fresh Farms Vegetable Mart',
       address: 'Shop No. 4, Green Market, Sector 15, City - 400012',
       phone: '+91 98765 43210',
-      gstin: '27AAAAA1111A1Z1'
+      gstin: '27AAAAA1111A1Z1',
+      upiId: '',
+      upiName: ''
     };
   });
 
@@ -96,6 +103,25 @@ export default function App() {
   const [configPhone, setConfigPhone] = useState(shopDetails.phone);
   const [configGstin, setConfigGstin] = useState(shopDetails.gstin || '');
   const [configLogo, setConfigLogo] = useState(shopDetails.logo || '');
+  const [configUpiId, setConfigUpiId] = useState(shopDetails.upiId || '');
+  const [configUpiName, setConfigUpiName] = useState(shopDetails.upiName || '');
+  const [previewQrDataUrl, setPreviewQrDataUrl] = useState<string>('');
+
+  // Live preview generator for UPI QR Code inside shop settings modal
+  useEffect(() => {
+    if (!configUpiId.trim()) {
+      setPreviewQrDataUrl('');
+      return;
+    }
+    const upiUri = `upi://pay?pa=${encodeURIComponent(configUpiId.trim())}&pn=${encodeURIComponent(configUpiName.trim() || configName.trim() || 'Merchant')}&cu=INR`;
+    QRCode.toDataURL(upiUri, {
+      width: 180,
+      margin: 1,
+      color: { dark: '#064e3b', light: '#ffffff' }
+    })
+      .then((url) => setPreviewQrDataUrl(url))
+      .catch((err) => console.warn('QR preview generation error:', err));
+  }, [configUpiId, configUpiName, configName]);
 
   // Live Clock state
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -323,6 +349,8 @@ export default function App() {
       phone: configPhone.trim() || '+91 98765 43210',
       gstin: configGstin.trim() || undefined,
       logo: configLogo.trim() || undefined,
+      upiId: configUpiId.trim() || undefined,
+      upiName: configUpiName.trim() || undefined,
     });
     setIsConfigOpen(false);
   };
@@ -346,7 +374,9 @@ export default function App() {
               address: 'Shop No. 4, Green Market, Sector 15, City - 400012',
               phone: '+91 98765 43210',
               gstin: '27AAAAA1111A1Z1',
-              logo: undefined
+              logo: undefined,
+              upiId: undefined,
+              upiName: undefined
             };
             setShopDetails(defaultShop);
             setConfigName(defaultShop.name);
@@ -354,6 +384,8 @@ export default function App() {
             setConfigPhone(defaultShop.phone);
             setConfigGstin(defaultShop.gstin);
             setConfigLogo('');
+            setConfigUpiId('');
+            setConfigUpiName('');
 
             // 2. Clear Local Storage
             localStorage.removeItem('vegetable_catalog');
@@ -406,6 +438,8 @@ export default function App() {
           setConfigPhone(parsed.shopDetails.phone || '');
           setConfigGstin(parsed.shopDetails.gstin || '');
           setConfigLogo(parsed.shopDetails.logo || '');
+          setConfigUpiId(parsed.shopDetails.upiId || '');
+          setConfigUpiName(parsed.shopDetails.upiName || '');
           showAlert(
             language === 'mr' ? 'यशस्वी झाले' : 'Success',
             t('restore_success') || 'Data restored successfully!'
@@ -914,10 +948,10 @@ export default function App() {
       {/* SHOP CONFIG MODAL DIALOG */}
       {isConfigOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-white p-6 rounded-2xl shadow-xl border border-slate-100">
+          <div className="w-full max-w-md max-h-[92vh] overflow-y-auto bg-white p-6 rounded-2xl shadow-xl border border-slate-100">
             <h3 className="font-display font-bold text-slate-800 text-lg mb-4 flex items-center gap-2">
               <Sliders className="w-5 h-5 text-emerald-600" />
-              Configure Shop Information
+              <span>{t('shop_settings_title') || 'Configure Shop Details'}</span>
             </h3>
             
             <form onSubmit={handleSaveConfig} className="flex flex-col gap-4">
@@ -994,7 +1028,9 @@ export default function App() {
 
               {/* Shop Name */}
               <div>
-                <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Shop Name</label>
+                <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">
+                  {t('shop_name_label') || 'Shop Name'}
+                </label>
                 <input
                   type="text"
                   value={configName}
@@ -1007,7 +1043,9 @@ export default function App() {
 
               {/* Shop Address */}
               <div>
-                <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Address</label>
+                <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">
+                  {t('shop_address_label') || 'Address'}
+                </label>
                 <input
                   type="text"
                   value={configAddress}
@@ -1021,7 +1059,9 @@ export default function App() {
               <div className="grid grid-cols-2 gap-3">
                 {/* Contact Phone */}
                 <div>
-                  <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Mobile / Phone</label>
+                  <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">
+                    {t('shop_phone_label') || 'Mobile / Phone'}
+                  </label>
                   <input
                     type="text"
                     value={configPhone}
@@ -1034,7 +1074,9 @@ export default function App() {
 
                 {/* GSTIN */}
                 <div>
-                  <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">GSTIN Number (Optional)</label>
+                  <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">
+                    {t('gstin_label') || 'GSTIN Number'}
+                  </label>
                   <input
                     type="text"
                     value={configGstin}
@@ -1045,20 +1087,102 @@ export default function App() {
                 </div>
               </div>
 
+              {/* UPI Payment Configuration & Dynamic QR Code Section */}
+              <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-3.5 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-emerald-900 font-bold text-xs uppercase tracking-wider">
+                    <QrCode className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{language === 'mr' ? 'यूपीआय पेमेंट व QR कोड' : 'UPI Payment & QR Code'}</span>
+                  </div>
+                  <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                    {language === 'mr' ? 'बिलावर QR दिसेल' : 'Dynamic QR on Bill'}
+                  </span>
+                </div>
+
+                <p className="text-[10px] text-slate-600 leading-relaxed">
+                  {language === 'mr'
+                    ? 'येथे तुमचा यूपीआय आयडी (उदा. 9876543210@paytm, shop@okaxis) टाका. ग्राहक बिलावरील QR कोड स्कॅन करून थेट पेमेंट करू शकतील.'
+                    : 'Enter your UPI ID (VPA). A dynamic scannable QR code will automatically appear on customer bills for instant digital payments.'}
+                </p>
+
+                <div className="flex flex-col gap-2.5">
+                  <div>
+                    <label className="block text-[10px] text-emerald-950 font-bold uppercase mb-1">
+                      {t('upi_id_label') || 'UPI ID / VPA'}
+                    </label>
+                    <input
+                      type="text"
+                      value={configUpiId}
+                      onChange={(e) => setConfigUpiId(e.target.value)}
+                      className="w-full text-xs border border-emerald-200 focus:border-emerald-600 focus:outline-hidden p-2.5 rounded-lg font-mono bg-white text-slate-800 placeholder:text-slate-400 placeholder:font-sans font-semibold"
+                      placeholder={t('upi_id_placeholder') || 'e.g. yourshop@okaxis, 9876543210@paytm'}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">
+                      {t('upi_name_label') || 'UPI Payee Name (Optional)'}
+                    </label>
+                    <input
+                      type="text"
+                      value={configUpiName}
+                      onChange={(e) => setConfigUpiName(e.target.value)}
+                      className="w-full text-xs border border-slate-200 focus:border-emerald-500 focus:outline-hidden p-2 rounded-lg bg-white text-slate-800"
+                      placeholder={language === 'mr' ? `रिक्त ठेवल्यास: ${configName || 'दुकान नाव'}` : `Defaults to: ${configName || 'Shop Name'}`}
+                    />
+                  </div>
+                </div>
+
+                {/* Live QR Preview if UPI ID is present */}
+                {configUpiId.trim() && previewQrDataUrl ? (
+                  <div className="mt-1 p-3 bg-white rounded-xl border border-emerald-200 flex items-center gap-3 shadow-2xs">
+                    <div className="w-20 h-20 bg-white p-1 rounded-lg border border-slate-200 shrink-0 flex items-center justify-center shadow-2xs">
+                      <img
+                        src={previewQrDataUrl}
+                        alt="UPI Preview"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0 text-left">
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-800">
+                        <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                        <span>{t('upi_qr_preview') || 'UPI QR Code Live Preview'}</span>
+                      </div>
+                      <p className="font-mono text-[11px] font-bold text-slate-800 truncate mt-0.5">
+                        {configUpiId}
+                      </p>
+                      <p className="text-[10px] text-slate-500 truncate">
+                        {configUpiName.trim() || configName.trim() || 'Shop Name'}
+                      </p>
+                      <div className="flex gap-1 mt-1 text-[8px] font-bold text-slate-500">
+                        <span className="bg-slate-100 px-1 py-0.5 rounded">GPay</span>
+                        <span className="bg-slate-100 px-1 py-0.5 rounded">PhonePe</span>
+                        <span className="bg-slate-100 px-1 py-0.5 rounded">Paytm</span>
+                        <span className="bg-slate-100 px-1 py-0.5 rounded">BHIM</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-[10px] text-slate-400 italic bg-white/70 rounded-lg p-2 border border-emerald-100 text-center">
+                    {language === 'mr' ? '💡 यूपीआय आयडी टाकल्यावर येथे QR कोडचे थेट पूर्वावलोकन दिसेल.' : '💡 Enter a UPI ID above to see a live QR code preview.'}
+                  </div>
+                )}
+              </div>
+
               {/* Danger Zone */}
-              <div className="mt-2 pt-3 border-t border-rose-100 bg-rose-50/50 rounded-xl p-3 border border-dashed">
+              <div className="mt-1 pt-3 border-t border-rose-100 bg-rose-50/50 rounded-xl p-3 border border-dashed">
                 <h4 className="text-[10px] text-rose-800 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
                   ⚠️ Danger Zone
                 </h4>
                 <p className="text-[10px] text-slate-500 leading-relaxed mb-2.5">
-                  This will permanently delete all sales, customer ledger, and reset the shop parameters & vegetables catalog.
+                  {t('reset_app_desc') || 'This will permanently delete all sales, customer ledger, and reset the shop parameters & vegetables catalog.'}
                 </p>
                 <button
                   type="button"
                   onClick={handleResetAllAppData}
                   className="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[10px] py-2 px-3 rounded-lg transition text-center cursor-pointer uppercase tracking-wider shadow-xs"
                 >
-                  Reset App & Erase All Data
+                  {t('factory_reset') || 'Reset App & Erase All Data'}
                 </button>
               </div>
 
@@ -1072,16 +1196,19 @@ export default function App() {
                     setConfigAddress(shopDetails.address);
                     setConfigPhone(shopDetails.phone);
                     setConfigGstin(shopDetails.gstin || '');
+                    setConfigLogo(shopDetails.logo || '');
+                    setConfigUpiId(shopDetails.upiId || '');
+                    setConfigUpiName(shopDetails.upiName || '');
                   }}
-                  className="border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold text-xs px-4 py-2.5 rounded-lg transition"
+                  className="border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold text-xs px-4 py-2.5 rounded-lg transition cursor-pointer"
                 >
-                  Cancel
+                  {t('close') || 'Cancel'}
                 </button>
                 <button
                   type="submit"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-5 py-2.5 rounded-lg transition"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-5 py-2.5 rounded-lg transition cursor-pointer shadow-xs"
                 >
-                  Save Configuration
+                  {t('save_changes') || 'Save Configuration'}
                 </button>
               </div>
 
