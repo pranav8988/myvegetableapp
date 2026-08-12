@@ -55,7 +55,6 @@ export default function InvoiceModal({
   const [copied, setCopied] = useState(false);
   const [imageCopied, setImageCopied] = useState(false);
   const [capturing, setCapturing] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
@@ -215,69 +214,6 @@ export default function InvoiceModal({
       );
     } finally {
       setCapturing(false);
-    }
-  };
-
-  // Universal 1-Tap Mobile Download Handler
-  const handleDirectDownload = async () => {
-    setDownloading(true);
-    try {
-      const imgData = await getOrGenerateImage();
-      if (!imgData) {
-        throw new Error('Could not generate bill image');
-      }
-
-      const filename = `Invoice-${sale.invoiceNumber}.png`;
-
-      // 1. Android APK Native Bridge Hook (Expo APK)
-      if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
-        (window as any).ReactNativeWebView.postMessage(
-          JSON.stringify({
-            type: 'DOWNLOAD_FILE',
-            dataUrl: imgData,
-            filename: filename,
-            title: `Save Invoice ${sale.invoiceNumber}`,
-          })
-        );
-        if (showAlert) {
-          showAlert(
-            language === 'mr' ? 'बिल फोटो डाऊनलोड झाले!' : 'Bill Image Downloaded!',
-            language === 'mr' ? 'बीजक फोटो तुमच्या फोनवर सेव्ह झाला.' : 'Invoice image successfully saved to your downloads.'
-          );
-        }
-        setDownloading(false);
-        return;
-      }
-
-      // 2. Open Screenshot Preview Modal so user can direct-save or long-press on ANY Android APK / WebView
-      setCapturedImage(imgData);
-
-      // 3. Mobile Browser Octet-Stream Direct Download trigger
-      try {
-        const octetUri = imgData.replace(/^data:image\/[^;]+/, 'data:application/octet-stream');
-        const a = document.createElement('a');
-        a.href = octetUri;
-        a.download = filename;
-        a.target = '_self';
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => {
-          document.body.removeChild(a);
-        }, 1000);
-      } catch (e) {
-        console.warn('Anchor click ignored by WebView, preview is open.');
-      }
-
-      if (showAlert) {
-        showAlert(
-          language === 'mr' ? 'बिल फोटो तयार आहे!' : 'Bill Image Ready!',
-          language === 'mr' ? 'फोटो डाउनलोड करण्यासाठी खालील इमेज दाबून धरा (Long Press).' : 'Tap & hold the image below to save to your photo gallery.'
-        );
-      }
-    } catch (err) {
-      console.error('Download error:', err);
-    } finally {
-      setDownloading(false);
     }
   };
 
@@ -632,41 +568,27 @@ Thank you for your purchase! 🍅🥬
           {/* Footer Actions (Direct 1-Tap Mobile Actions) */}
           <div className="px-6 py-4 bg-slate-50 border-t border-gray-100 flex flex-col gap-2.5 no-print">
             
-            {/* Primary Action Buttons (Download, Print, Screenshot) */}
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={handleDirectDownload}
-                disabled={downloading}
-                className="flex flex-col items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-2 rounded-xl transition text-xs shadow-md cursor-pointer select-none active:scale-95 touch-manipulation"
-                title="Download Bill Image Directly"
-              >
-                <Download className="w-4 h-4 pointer-events-none" />
-                <span className="text-[11px] leading-tight">
-                  {downloading 
-                    ? (language === 'mr' ? 'डाऊनलोड...' : 'Saving...') 
-                    : (language === 'mr' ? 'बिल डाउनलोड' : 'Download')}
-                </span>
-              </button>
-
+            {/* Primary Action Buttons (Print, Screenshot) */}
+            <div className="grid grid-cols-2 gap-2.5">
               <button
                 onClick={handlePrint}
-                className="flex flex-col items-center justify-center gap-1 bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 px-2 rounded-xl transition text-xs shadow-md cursor-pointer select-none active:scale-95 touch-manipulation"
+                className="flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-3 rounded-xl transition text-xs shadow-md cursor-pointer select-none active:scale-95 touch-manipulation"
                 title="Print or Save as PDF"
               >
                 <Printer className="w-4 h-4 pointer-events-none" />
-                <span className="text-[11px] leading-tight">{language === 'mr' ? 'प्रिंट / PDF' : 'Print / PDF'}</span>
+                <span className="text-xs leading-tight">{language === 'mr' ? 'प्रिंट / PDF' : 'Print / PDF'}</span>
               </button>
 
               <button
                 onClick={handleTakeScreenshot}
                 disabled={capturing}
-                className="flex flex-col items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-bold py-2.5 px-2 rounded-xl transition text-xs shadow-md cursor-pointer select-none active:scale-95 touch-manipulation"
+                className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold py-3 px-3 rounded-xl transition text-xs shadow-md cursor-pointer select-none active:scale-95 touch-manipulation"
                 title="Preview & Screenshot Bill"
               >
                 <Camera className="w-4 h-4 pointer-events-none" />
-                <span className="text-[11px] leading-tight">
+                <span className="text-xs leading-tight">
                   {capturing 
-                    ? (language === 'mr' ? 'तयार...' : 'Loading...') 
+                    ? (language === 'mr' ? 'तयार करत आहे...' : 'Loading...') 
                     : (language === 'mr' ? 'स्क्रीनशॉट' : 'Screenshot')}
                 </span>
               </button>
